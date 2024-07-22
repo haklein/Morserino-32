@@ -25,6 +25,7 @@
  * 
  ****************************************************************************************************************************/
 
+#include <ESP32RotaryEncoder.h>
 
 #include "morsedefs.h"
 #include "MorserinoJson.h"
@@ -63,10 +64,6 @@ Decoder audioDecoder(USE_AUDIO);
 MorseTable keyerTable;
 Koch koch;
 
-// things for reading the encoder
-portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-
-
 volatile int8_t _oldState;
 
 int8_t woken = 0;
@@ -74,16 +71,6 @@ int8_t woken = 0;
 #define LATCHSTATE 3
 
 volatile int8_t encoderPos = 0;
-volatile uint64_t IRTime = 0;   // interrupt time
-const int encoderWaitTime = 100 ;         // how long to wait for next reading from encoder in microseconds
-volatile uint8_t stateRegister = 0;
-
-// positions: [3] 1 0 2 [3] 1 0 2 [3]
-// [3] is the positions where my rotary switch detends
-// ==> right, count up
-// <== left,  count down
-
-
 
 ///// the states the morserino can be in - selected in top level menu
 morserinoMode morseState = morseKeyer;
@@ -320,52 +307,24 @@ uint8_t cwTxSerial;                                     /// a 6 bit serial numbe
 IPAddress peerIP;
 
 
-////////////////////////////////////////////////////////////////////
-// encoder subroutines
-/// interrupt service routine - needs to be positioned BEFORE all other functions, including setup() and loop()
-/// interrupt service routine
+RotaryEncoder rotaryEncoder( PinDT, PinCLK );
 
-void IRAM_ATTR isr ()  {                    // Interrupt service routine is executed when a HIGH to LOW transition is detected on CLK
-//if (micros()  > (IRTime + 1000) ) {
-portENTER_CRITICAL_ISR(&mux);
-
-    int sig2 = digitalRead(PinDT); //MSB = most significant bit
-    int sig1 = digitalRead(PinCLK); //LSB = least significant bit
-    delayMicroseconds(144);                 // this seems to improve the responsiveness of the encoder and avoid any bouncing
-
-    int8_t thisState = sig1 | (sig2 << 1);
-    if (_oldState != thisState) {
-      stateRegister = (stateRegister << 2) | thisState;
-      if (thisState == LATCHSTATE) {
-        
-          if (stateRegister == 135 )
-            encoderPos = 1;
-          else if (stateRegister == 75)
-            encoderPos = -1;
-          else
-            encoderPos = 0;
-        }
-    _oldState = thisState;
-    } 
-portEXIT_CRITICAL_ISR(&mux);
-}
-
-
-
-int IRAM_ATTR checkEncoder() {
+int checkEncoder() {
   int t;
   
-  portENTER_CRITICAL(&mux);
-
   t = encoderPos;
   if (encoderPos) {
     encoderPos = 0;
-    portEXIT_CRITICAL(&mux);
     return t;
   } else {
-    portEXIT_CRITICAL(&mux);
     return 0;
   }
+}
+void knobCallback( long value )
+{
+    // This gets executed every time the knob is turned
+    encoderPos = (int8_t) value;
+    rotaryEncoder.setEncoderValue( 0 );
 }
 
 //////////////////////// Function for generating DEBUG and ERROR messages on USB, ONLY IF USB is not used for outputting characters
@@ -395,6 +354,9 @@ void setup()
   // reserve 200 bytes for the serial inputString variable defiend above:
   inputString.reserve(255);
 
+  rotaryEncoder.onTurned( &knobCallback );
+  rotaryEncoder.setBoundaries( -1, 1, false );
+  rotaryEncoder.begin();
 
   MorsePreferences::determineBoardVersion();
   // now set pins according to board version
@@ -430,9 +392,6 @@ void setup()
 
  //DEBUG("Volt: " + String(volt));
 
-  // set up the encoder - we need external pull-ups as the pins used do not have built-in pull-ups!
-  pinMode(PinCLK,INPUT_PULLUP);
-  pinMode(PinDT,INPUT_PULLUP);  
   pinMode(keyerPin, OUTPUT);        // we can use the built-in LED to show when the transmitter is being keyed
   pinMode(leftPin, INPUT);          // external keyer left paddle
   pinMode(rightPin, INPUT);         // external keyer right paddle
@@ -447,11 +406,6 @@ void setup()
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
   MorseOutput::soundSetup();
 
-  //call ISR when any high/low changed seen
-  //on any of the enoder pins
-  attachInterrupt (digitalPinToInterrupt(PinDT), isr, CHANGE);   
-  attachInterrupt (digitalPinToInterrupt(PinCLK), isr, CHANGE);
- 
   encoderPos = 0;           /// this is the encoder position
 
 /// set up for encoder button
