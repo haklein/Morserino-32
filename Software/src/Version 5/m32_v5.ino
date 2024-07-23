@@ -403,10 +403,16 @@ void setup()
     leftPin = 33;
     rightPin = 32;
   } else {        // must be board version 4
+#ifdef HELTEC_LORA_V3
+    batteryPin = 46;
+    leftPin = 38;
+    rightPin = 39;
+#else
     batteryPin = 37;
-    Buttons::modeButton.activeHigh = HIGH;      // in contrast to board v.3, in v4. the active state is HIGH not LOW
     leftPin = 32;
     rightPin = 33;
+#endif
+    Buttons::modeButton.activeHigh = HIGH;      // in contrast to board v.3, in v4. the active state is HIGH not LOW
   }
 
 

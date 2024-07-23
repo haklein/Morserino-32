@@ -1305,6 +1305,10 @@ void MorsePreferences::determineBoardVersion() {
     MorsePreferences::boardVersion = pref.getUChar("boardVersion");
     delay(1000);
     if (MorsePreferences::boardVersion == 0) {                    // no board version had been set previously, so we determine and set it here
+#ifdef BOARD_HELTEC_LORA_V3
+        MorsePreferences::boardVersion = 4; //DEBUG("boardV: 4");
+        pref.putUChar("boardVersion", MorsePreferences::boardVersion);
+#else
         const int oldbatt = 13;                                     // we measure voltage at pin 13; if V close to zero we have a 2.1 Heltec, so board 4
 
         analogSetAttenuation(ADC_0db);
@@ -1318,6 +1322,7 @@ void MorsePreferences::determineBoardVersion() {
         else {MorsePreferences::boardVersion = 4; //DEBUG("boardV: 4");
         }
         pref.putUChar("boardVersion", MorsePreferences::boardVersion);
+#endif
     }
     pref.end();
 }
