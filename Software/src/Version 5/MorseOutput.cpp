@@ -63,7 +63,11 @@ FONT_ATTRIB printToScroll_lastStyle = REGULAR;
 int toneFreq = 500 ;
 int toneChannel = 2;      // this PWM channel is used for LF generation, duty cycle is 0 (silent) or 50% (tone)
 int lineOutChannel = 3;   // this PWM channel is used for line-out LF generation, duty cycle is 0 (silent) or 50% (tone)
+#if HELTEC_VERSION == V3
+int volChannel = 1;       // this PWM channel is used for HF generation, duty cycle between 1% (almost silent) and 100% (loud)
+#else
 int volChannel = 8;       // this PWM channel is used for HF generation, duty cycle between 1% (almost silent) and 100% (loud)
+#endif
 int pwmResolution = 10;
 unsigned int volFreq = 32000; // this is the HF frequency we are using
 
