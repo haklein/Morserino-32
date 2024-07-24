@@ -395,7 +395,6 @@ void setup()
   // reserve 200 bytes for the serial inputString variable defiend above:
   inputString.reserve(255);
 
-
   MorsePreferences::determineBoardVersion();
   // now set pins according to board version
   if (MorsePreferences::boardVersion == 3) {
@@ -403,10 +402,10 @@ void setup()
     leftPin = 33;
     rightPin = 32;
   } else {        // must be board version 4
-#ifdef HELTEC_LORA_V3
-    batteryPin = 46;
-    leftPin = 38;
-    rightPin = 39;
+#if HELTEC_VERSION == V3
+    batteryPin = 1; // VBAT_Read is on ADC1_CH0 (GPIO1), also VBAT_READ_CNTRL_PIN 37 needs to be pulled low for a reading
+    leftPin = 39;
+    rightPin = 38;
 #else
     batteryPin = 37;
     leftPin = 32;
@@ -447,7 +446,12 @@ void setup()
   analogSetAttenuation(ADC_0db);
 
  // init display, LoRa
+#if HELTEC_VERSION == V3
+  // disable LoRa for now
+  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
+#else
   Heltec.begin(true /*DisplayEnable Enable*/, true /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
+#endif
   Heltec.display -> setBrightness(MorsePreferences::oledBrightness);
   MorseOutput::clearDisplay();
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
@@ -505,6 +509,7 @@ void setup()
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
   quickStart = MorsePreferences::pliste[posQuickStart].value;
 
+#if HELTEC_VERSION != V3
 ////////////  Setup for LoRa
 
   LoRa.setFrequency(MorsePreferences::loraQRG+0000);                       /// default = 434.150 MHz - Region 1 ISM Band, can be changed by system setup
@@ -517,6 +522,8 @@ void setup()
   
   // register the receive callback
   LoRa.onReceive(onLoraReceive);
+#endif 
+
   /// initialise the serial number
   cwTxSerial = random(64);
 
@@ -597,10 +604,13 @@ void displayStartUp(uint16_t volt) {
   MorseOutput::printOnScroll(1, REGULAR, 0, "© 2018-2024");
 
   // uint16_t volt = batteryVoltage(); // has been measured early in setup()
-  
+
+// FIXME: re-enable after voltage measurement is working on V3
+#if HELTEC_VERSION != V3
   if (volt > 1000 && volt < 2800)
     MorseOutput::displayEmptyBattery(shutMeDown);
   else 
+#endif
     MorseOutput::displayBatteryStatus(volt);
   //prepare board version, just in case we want to switch to M32protocol later on
   if (MorsePreferences::boardVersion == 3)
@@ -2051,7 +2061,14 @@ int16_t batteryVoltage() {      /// measure battery voltage and return result in
          digitalWrite(Vext,LOW);
       // board version 4 requires Vext being off for reading the battery voltage
       else if (MorsePreferences::boardVersion == 4)
+#if HELTEC_VERSION == V3
+        {
+         pinMode(37,OUTPUT); // this is required to allow voltage measurement via GPIO 1 on lora v3 board
+         digitalWrite(37, LOW);
+        }
+#else
          digitalWrite(Vext,HIGH);
+#endif
 
       double v= 0; int counts = 4;
       for (int i=0; i<counts   ; ++i) {

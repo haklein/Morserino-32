@@ -1305,7 +1305,7 @@ void MorsePreferences::determineBoardVersion() {
     MorsePreferences::boardVersion = pref.getUChar("boardVersion");
     delay(1000);
     if (MorsePreferences::boardVersion == 0) {                    // no board version had been set previously, so we determine and set it here
-#ifdef BOARD_HELTEC_LORA_V3
+#if HELTEC_VERSION == V3
         MorsePreferences::boardVersion = 4; //DEBUG("boardV: 4");
         pref.putUChar("boardVersion", MorsePreferences::boardVersion);
 #else
