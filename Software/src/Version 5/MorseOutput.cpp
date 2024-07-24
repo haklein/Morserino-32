@@ -584,20 +584,17 @@ void MorseOutput::resetTOT() {       //// reset the Time Out Timer - we do this 
 void MorseOutput::soundSetup()
 {
     // set up PWMs for tone generation
-    Serial.println("attach tone");
     ledcSetup(toneChannel, toneFreq, pwmResolution);
     ledcAttachPin(LF_Pin, toneChannel);
 
-    //ledcSetup(lineOutChannel, toneFreq, pwmResolution);
-    //ledcAttachPin(lineOutPin, lineOutChannel);                                    ////// change this for real version - no line out currntly
+    ledcSetup(lineOutChannel, toneFreq, pwmResolution);
+    ledcAttachPin(lineOutPin, lineOutChannel);                                    ////// change this for real version - no line out currntly
 
-    Serial.println("attach vol");
     ledcSetup(volChannel, volFreq, pwmResolution);
     ledcAttachPin(HF_Pin, volChannel);
 
-    Serial.println("write tone");
     ledcWrite(toneChannel, 0);
-    //ledcWrite(lineOutChannel, 0);
+    ledcWrite(lineOutChannel, 0);
 }
 
 
