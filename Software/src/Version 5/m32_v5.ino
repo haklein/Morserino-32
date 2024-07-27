@@ -1249,6 +1249,9 @@ void togglePolarity () {
 /// binary:   00          01                10                11
 
 uint8_t readSensors(int left, int right, boolean init) {
+#if HELTEC_VERSION==V3
+  return 0;
+#endif
   //long int timer = micros();
   //static boolean first = true;
   uint8_t v, lValue, rValue;
