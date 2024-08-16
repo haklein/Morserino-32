@@ -123,8 +123,8 @@ const int modeButtonPin = 41; // 46; // v2 had 37;
 const int volButtonPin = 0; // same on v2
 const int LF_Pin = 34; // v2 had 23;    // for the lower (= NF) frequency generation
 const int HF_Pin = 36; // v2 had 22;    // for the HF PWM generation
-const int LEFT = 6; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
-const int RIGHT = 5; // v2 had T5;       // = Pin 12
+const int LEFT = 2; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
+const int RIGHT = 3; // v2 had T5;       // = Pin 12
 const int keyerPin = 1; // v2 had 25;        // this keys the transmitter / through a MOSFET Optocoupler - at the same time lights up the LED
 const int audioInPin = 7; // 7 is fake, original pin is 37; // v2 had 36;      // audio in for Morse decoder
 const int lineOutPin = 20; // v2 had 17; // for NF line out

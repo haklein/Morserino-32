@@ -41,6 +41,10 @@
 #include "goertzel.h"         // Goertzel filter
 #include "MorseDecoder.h"     // Decoder Engine
 
+#ifdef SOUND_I2S
+#include "I2S_Sidetone.hpp"
+I2S_Sidetone sidetone;
+#endif
 
 // define the buttons for the clickbutton library, & other classes that we need
 

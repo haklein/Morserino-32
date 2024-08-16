@@ -31,6 +31,11 @@
 #include "wklfonts.h"
 #include "MorsePreferences.h"
 
+#ifdef SOUND_I2S
+#include "I2S_Sidetone.hpp"
+extern I2S_Sidetone sidetone;
+#endif
+
 using namespace MorseOutput;
 
 char textBuffer[NoOfLines][2 * NoOfCharsPerLine + 1]; /// we need extra room for style markers (FONT_ATTRIB stored as characters to toggle on/off the style within a line)
@@ -583,6 +588,7 @@ void MorseOutput::resetTOT() {       //// reset the Time Out Timer - we do this 
 
 void MorseOutput::soundSetup()
 {
+#ifndef SOUND_I2S
     // set up PWMs for tone generation
     ledcSetup(toneChannel, toneFreq, pwmResolution);
     ledcAttachPin(LF_Pin, toneChannel);
@@ -595,10 +601,15 @@ void MorseOutput::soundSetup()
 
     ledcWrite(toneChannel, 0);
     ledcWrite(lineOutChannel, 0);
+#else
+    sidetone.begin();
+    sidetone.setFrequency(600.0);
+#endif
 }
 
 
 void MorseOutput::pwmTone(unsigned int frequency, unsigned int volume, boolean lineOut) { // frequency in Hertz, volume in range 0 - 19; we use 10 bit resolution
+#ifndef SOUND_I2S
   const uint16_t vol[] =   {0,  1, 2, 4, 6, 9, 14, 21, 31, 45, 70, 100, 140, 200, 280, 390, 512, 680, 840, 1023}; // 20 values
   unsigned int i = constrain(volume, 0, 19);
   unsigned int j = vol[i] >> 8;     // experimental: soften the inital click
@@ -627,12 +638,16 @@ void MorseOutput::pwmTone(unsigned int frequency, unsigned int volume, boolean l
   delay(3);
   ledcWrite(volChannel, vol[i]); 
    
-
-
+#else
+    sidetone.setFrequency(frequency);
+    sidetone.on();
+    delay(5);
+#endif
 }
 
 
 void MorseOutput::pwmNoTone(unsigned int volume) {      // stop playing a tone by changing duty cycle of the tone to 0
+#ifndef SOUND_I2S
   const uint16_t vol[] =   {0,  1, 2, 4, 6, 9, 14, 21, 31, 45, 70, 100, 140, 200, 280, 390, 512, 680, 840, 1023}; // 20 values
   unsigned int i = constrain(volume, 0, 19);
   unsigned int j = vol[i] >> 8;     // experimental: soften the inital click
@@ -649,6 +664,10 @@ void MorseOutput::pwmNoTone(unsigned int volume) {      // stop playing a tone b
 
   ledcWrite(toneChannel, dutyCycleZero);
   ledcWrite(lineOutChannel, dutyCycleZero);
+#else
+  sidetone.off();
+  delay(5);
+#endif
 
 }
 
