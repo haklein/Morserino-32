@@ -119,7 +119,7 @@ static const uint8_t DIO1_LoRa = 14;
 
 const int PinCLK=45; // v2 had 38;                   // Used for generating interrupts using CLK signal - needs external pullup resisitor!
 const int PinDT=42;  // v2 had 39;                    // Used for reading DT signal  - needs external pullup resisitor!
-const int modeButtonPin = 46; // v2 had 37;
+const int modeButtonPin = 41; // 46; // v2 had 37;
 const int volButtonPin = 0; // same on v2
 const int LF_Pin = 34; // v2 had 23;    // for the lower (= NF) frequency generation
 const int HF_Pin = 36; // v2 had 22;    // for the HF PWM generation

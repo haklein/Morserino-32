@@ -331,7 +331,7 @@ portENTER_CRITICAL_ISR(&mux);
 
     int sig2 = digitalRead(PinDT); //MSB = most significant bit
     int sig1 = digitalRead(PinCLK); //LSB = least significant bit
-    delayMicroseconds(144);                 // this seems to improve the responsiveness of the encoder and avoid any bouncing
+    // delayMicroseconds(144);                 // this seems to improve the responsiveness of the encoder and avoid any bouncing
 
     int8_t thisState = sig1 | (sig2 << 1);
     if (_oldState != thisState) {
@@ -411,7 +411,7 @@ void setup()
     leftPin = 32;
     rightPin = 33;
 #endif
-    Buttons::modeButton.activeHigh = HIGH;      // in contrast to board v.3, in v4. the active state is HIGH not LOW
+    Buttons::modeButton.activeHigh = LOW;      // in contrast to board v.3, in v4. the active state is HIGH not LOW
   }
 
 
@@ -429,7 +429,7 @@ void setup()
 
   // measure battery voltage, then set pinMode (important for board 4, as the same pin is used for battery measurement
   volt = batteryVoltage();
-  pinMode(modeButtonPin, INPUT);
+  pinMode(modeButtonPin, INPUT_PULLUP);
 
 
 
@@ -439,8 +439,8 @@ void setup()
   pinMode(PinCLK,INPUT_PULLUP);
   pinMode(PinDT,INPUT_PULLUP);  
   pinMode(keyerPin, OUTPUT);        // we can use the built-in LED to show when the transmitter is being keyed
-  pinMode(leftPin, INPUT);          // external keyer left paddle
-  pinMode(rightPin, INPUT);         // external keyer right paddle
+  pinMode(leftPin, INPUT_PULLUP);          // external keyer left paddle
+  pinMode(rightPin, INPUT_PULLUP);         // external keyer right paddle
 
   
   analogSetAttenuation(ADC_0db);
@@ -467,7 +467,7 @@ void setup()
 /// set up for encoder button
 //  pinMode(modeButtonPin, INPUT);
   pinMode(volButtonPin, INPUT_PULLUP);               // external pullup for all GPIOS > 32 with ESP32-LORA
-  pinMode(modeButtonPin, INPUT);
+  pinMode(modeButtonPin, INPUT_PULLUP);
                                                      // wake up also works without external pullup! Interesting!
   
   // Setup button timers (all in milliseconds / ms)
@@ -523,6 +523,13 @@ void setup()
   // register the receive callback
   LoRa.onReceive(onLoraReceive);
 #endif 
+
+/*
+while (true) {
+	bool keystate = digitalRead(modeButtonPin);
+	Serial.println(keystate);
+}
+*/
 
   /// initialise the serial number
   cwTxSerial = random(64);
