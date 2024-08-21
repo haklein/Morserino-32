@@ -640,6 +640,7 @@ void MorseOutput::pwmTone(unsigned int frequency, unsigned int volume, boolean l
    
 #else
     sidetone.setFrequency(frequency);
+    sidetone.setVolume(float(volume) / 19.0);
     sidetone.on();
     delay(5);
 #endif
