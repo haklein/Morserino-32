@@ -604,6 +604,7 @@ void MorseOutput::soundSetup()
 #else
     sidetone.begin();
     sidetone.setFrequency(600.0);
+    sidetone.setADSR(0.0100,20.0, 1.0 , 0.008);
 #endif
 }
 
