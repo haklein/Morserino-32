@@ -781,7 +781,7 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
             goToMenu = false;
             return true;
         } 
-        pinMode(modeButtonPin, INPUT);
+        pinMode(modeButtonPin, INPUT_PULLUP);
 
         Buttons::modeButton.Update();
         switch (Buttons::modeButton.clicks) {
