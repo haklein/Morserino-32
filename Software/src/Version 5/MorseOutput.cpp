@@ -604,7 +604,8 @@ void MorseOutput::soundSetup()
 #else
     sidetone.begin();
     sidetone.setFrequency(600.0);
-    sidetone.setADSR(0.0100,20.0, 1.0 , 0.008);
+    // sidetone.setADSR(0.005,1.0, 1.0 , 0.003); // this gives about 3ms ramp on and 8ms off
+    sidetone.setADSR(0.005,1.0, 1.0 , 0.005); // this gives about 3ms ramp on and 8ms off
 #endif
 }
 
@@ -643,7 +644,6 @@ void MorseOutput::pwmTone(unsigned int frequency, unsigned int volume, boolean l
     sidetone.setFrequency(frequency);
     sidetone.setVolume(float(volume) / 19.0);
     sidetone.on();
-    delay(0);
 #endif
 }
 
@@ -668,7 +668,6 @@ void MorseOutput::pwmNoTone(unsigned int volume) {      // stop playing a tone b
   ledcWrite(lineOutChannel, dutyCycleZero);
 #else
   sidetone.off();
-  delay(0);
 #endif
 
 }
@@ -692,6 +691,9 @@ void MorseOutput::soundSignalOK() {
     pwmTone(440, MorsePreferences::sidetoneVolume, false);
     delay(97);
     pwmNoTone(MorsePreferences::sidetoneVolume);
+#ifdef SOUND_I2S
+    delay(20);
+#endif
     pwmTone(587, MorsePreferences::sidetoneVolume, false);
     delay(193);
     pwmNoTone(MorsePreferences::sidetoneVolume);
