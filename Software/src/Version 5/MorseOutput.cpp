@@ -602,10 +602,10 @@ void MorseOutput::soundSetup()
     ledcWrite(toneChannel, 0);
     ledcWrite(lineOutChannel, 0);
 #else
-    sidetone.begin(64);
+    sidetone.begin(11025,16,1,64); //  defaults to 44100, 16, 2, 32
     sidetone.setFrequency(600.0);
     // sidetone.setADSR(0.005,1.0, 1.0 , 0.003); // this gives about 3ms ramp on and 8ms off
-    sidetone.setADSR(0.005,1.0, 1.0 , 0.005);
+    //sidetone.setADSR(0.005,1.0, 1.0 , 0.005); // default values in lib
 #endif
 }
 
