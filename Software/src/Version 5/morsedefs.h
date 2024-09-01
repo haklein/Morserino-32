@@ -116,19 +116,33 @@ static const uint8_t BUSY_LoRa = 13;
 static const uint8_t DIO1_LoRa = 14;
 */
 // SX1262 radio = new Module(SS, DIO0, RST_LoRa, BUSY_LoRa);
-
+//
+const int PinCLK=ROT_CLK; // v2 had 38;                   // Used for generating interrupts using CLK signal - needs external pullup resisitor!
+const int PinDT=ROT_DT;  // v2 had 39;                    // Used for reading DT signal  - needs external pullup resisitor!
+const int modeButtonPin = ROT_BTN; // 46; // v2 had 37;
+const int volButtonPin = VOL_BUTTON; // same on v2
+const int LF_Pin = LF_PIN; // v2 had 23;    // for the lower (= NF) frequency generation
+const int HF_Pin = HF_PIN; // v2 had 22;    // for the HF PWM generation
+const int LEFT = 1; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
+const int RIGHT = 3; // v2 had T5;       // = Pin 12
+const int keyerPin = 2; // v2 had 25;        // this keys the transmitter / through a MOSFET Optocoupler - at the same time lights up the LED
+const int audioInPin = 7; // 7 is fake, original pin is 37; // v2 had 36;      // audio in for Morse decoder
+const int lineOutPin = 20; // v2 had 17; // for NF line out
+			   //
+/*
 const int PinCLK=45; // v2 had 38;                   // Used for generating interrupts using CLK signal - needs external pullup resisitor!
 const int PinDT=42;  // v2 had 39;                    // Used for reading DT signal  - needs external pullup resisitor!
 const int modeButtonPin = 41; // 46; // v2 had 37;
 const int volButtonPin = 0; // same on v2
 const int LF_Pin = 34; // v2 had 23;    // for the lower (= NF) frequency generation
 const int HF_Pin = 36; // v2 had 22;    // for the HF PWM generation
-const int LEFT = 2; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
+const int LEFT = 1; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
 const int RIGHT = 3; // v2 had T5;       // = Pin 12
-const int keyerPin = 1; // v2 had 25;        // this keys the transmitter / through a MOSFET Optocoupler - at the same time lights up the LED
+const int keyerPin = 2; // v2 had 25;        // this keys the transmitter / through a MOSFET Optocoupler - at the same time lights up the LED
 const int audioInPin = 7; // 7 is fake, original pin is 37; // v2 had 36;      // audio in for Morse decoder
 const int lineOutPin = 20; // v2 had 17; // for NF line out
 // batterypin 46; // v2 had 37 - this and the paddle pins are set in MorsePreferences.cpp board detection method
+*/
 
 /*
 /// where is the encoder?

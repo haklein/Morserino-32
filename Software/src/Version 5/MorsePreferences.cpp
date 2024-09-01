@@ -744,7 +744,8 @@ String MorsePreferences::getValueLine(prefPos pos) {
       }
       break;
     case posVAdjust:
-      volt = (int16_t) (voltage_raw *  (MorsePreferences::vAdjust * 12.9));   // recalculate millivolts for new adjustment
+      volt = (int16_t) (voltage_raw *  (MorsePreferences::vAdjust  * 1000.0 / 200.0));   // recalculate millivolts for new adjustment
+      // volt = (int16_t) (voltage_raw *  (MorsePreferences::vAdjust * 12.9));   // recalculate millivolts for new adjustment
       sprintf(numBuffer, "%4d mV", volt);
       str = String(numBuffer);
       break;
@@ -1154,7 +1155,9 @@ void MorsePreferences::writePreferences(String repository) {
             switch (i) {                                                              // in certain cases we need to do something
               case posLoraChannel:
                     if (morserino)
+#ifdef LORA
                       LoRa.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
+#endif
                     break;
               case posGoertzelBandwidth:
                     if (morserino)

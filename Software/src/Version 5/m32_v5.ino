@@ -46,6 +46,10 @@
 I2S_Sidetone sidetone;
 #endif
 
+#include <ESP32Encoder.h>
+
+ESP32Encoder encoder;
+
 // define the buttons for the clickbutton library, & other classes that we need
 
 /// variables, value defined at setup()
@@ -66,10 +70,6 @@ Decoder keyDecoder(USE_KEY);
 Decoder audioDecoder(USE_AUDIO);
 MorseTable keyerTable;
 Koch koch;
-
-// things for reading the encoder
-portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-
 
 volatile int8_t _oldState;
 
@@ -323,53 +323,12 @@ uint8_t cwTxSerial;                                     /// a 6 bit serial numbe
 
 IPAddress peerIP;
 
+int checkEncoder() {
 
-////////////////////////////////////////////////////////////////////
-// encoder subroutines
-/// interrupt service routine - needs to be positioned BEFORE all other functions, including setup() and loop()
-/// interrupt service routine
-
-void IRAM_ATTR isr ()  {                    // Interrupt service routine is executed when a HIGH to LOW transition is detected on CLK
-//if (micros()  > (IRTime + 1000) ) {
-portENTER_CRITICAL_ISR(&mux);
-
-    int sig2 = digitalRead(PinDT); //MSB = most significant bit
-    int sig1 = digitalRead(PinCLK); //LSB = least significant bit
-    // delayMicroseconds(144);                 // this seems to improve the responsiveness of the encoder and avoid any bouncing
-
-    int8_t thisState = sig1 | (sig2 << 1);
-    if (_oldState != thisState) {
-      stateRegister = (stateRegister << 2) | thisState;
-      if (thisState == LATCHSTATE) {
-        
-          if (stateRegister == 135 )
-            encoderPos = 1;
-          else if (stateRegister == 75)
-            encoderPos = -1;
-          else
-            encoderPos = 0;
-        }
-    _oldState = thisState;
-    } 
-portEXIT_CRITICAL_ISR(&mux);
-}
-
-
-
-int IRAM_ATTR checkEncoder() {
   int t;
-  
-  portENTER_CRITICAL(&mux);
-
-  t = encoderPos;
-  if (encoderPos) {
-    encoderPos = 0;
-    portEXIT_CRITICAL(&mux);
-    return t;
-  } else {
-    portEXIT_CRITICAL(&mux);
-    return 0;
-  }
+  t = encoder.getCount() * -1;  
+  encoder.clearCount();
+  return t;
 }
 
 //////////////////////// Function for generating DEBUG and ERROR messages on USB, ONLY IF USB is not used for outputting characters
@@ -401,27 +360,27 @@ void setup()
 
   MorsePreferences::determineBoardVersion();
   // now set pins according to board version
-  if (MorsePreferences::boardVersion == 3) {
-    batteryPin = 13;
-    leftPin = 33;
-    rightPin = 32;
+  if (0 /* MorsePreferences::boardVersion == 3 */) {
+    batteryPin = VBAT_READ;
+    leftPin = PADDLE_LEFT;
+    rightPin = PADDLE_RIGHT;
   } else {        // must be board version 4
 #if HELTEC_VERSION == V3
-    batteryPin = 1; // VBAT_Read is on ADC1_CH0 (GPIO1), also VBAT_READ_CNTRL_PIN 37 needs to be pulled low for a reading
-    leftPin = 39;
-    rightPin = 38;
+    batteryPin = VBAT_READ; // VBAT_Read is on ADC1_CH0 (GPIO1), also VBAT_READ_CNTRL_PIN 37 needs to be pulled low for a reading
+    leftPin = PADDLE_LEFT;
+    rightPin = PADDLE_RIGHT;
 #else
-    batteryPin = 37;
-    leftPin = 32;
-    rightPin = 33;
+    batteryPin = VBAT_READ;
+    leftPin = PADDLE_LEFT;
+    rightPin = PADDLE_RIGHT;
 #endif
     Buttons::modeButton.activeHigh = LOW;      // in contrast to board v.3, in v4. the active state is HIGH not LOW
   }
 
 
-  pinMode(Vext, OUTPUT);
+  //pinMode(Vext, OUTPUT);
   //enable Vext
-  digitalWrite(Vext,LOW);
+  //digitalWrite(Vext,LOW);
   
   
 
@@ -440,8 +399,8 @@ void setup()
  //DEBUG("Volt: " + String(volt));
 
   // set up the encoder - we need external pull-ups as the pins used do not have built-in pull-ups!
-  pinMode(PinCLK,INPUT_PULLUP);
-  pinMode(PinDT,INPUT_PULLUP);  
+  //pinMode(PinCLK,INPUT_PULLUP);
+  //pinMode(PinDT,INPUT_PULLUP);  
   pinMode(keyerPin, OUTPUT);        // we can use the built-in LED to show when the transmitter is being keyed
   pinMode(leftPin, INPUT_PULLUP);          // external keyer left paddle
   pinMode(rightPin, INPUT_PULLUP);         // external keyer right paddle
@@ -461,12 +420,13 @@ void setup()
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
   MorseOutput::soundSetup();
 
-  //call ISR when any high/low changed seen
-  //on any of the enoder pins
-  attachInterrupt (digitalPinToInterrupt(PinDT), isr, CHANGE);   
-  attachInterrupt (digitalPinToInterrupt(PinCLK), isr, CHANGE);
- 
   encoderPos = 0;           /// this is the encoder position
+  ESP32Encoder::useInternalWeakPullResistors = puType::up;
+  encoder.attachSingleEdge(PinCLK,PinDT);
+  // encoder.attachHalfQuad(PinCLK,PinDT);
+  encoder.setCount(0);
+  encoder.setFilter(1023);
+
 
 /// set up for encoder button
 //  pinMode(modeButtonPin, INPUT);
@@ -513,9 +473,10 @@ void setup()
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
   quickStart = MorsePreferences::pliste[posQuickStart].value;
 
-#if HELTEC_VERSION != V3
+// #if HELTEC_VERSION != V3
 ////////////  Setup for LoRa
 
+#ifdef LORA
   LoRa.setFrequency(MorsePreferences::loraQRG+0000);                       /// default = 434.150 MHz - Region 1 ISM Band, can be changed by system setup
   LoRa.setSpreadingFactor(7);                         /// default
   LoRa.setSignalBandwidth(250E3);                     /// 250 kHz
@@ -2068,8 +2029,13 @@ String cleanUpProSigns( String &input ) {
 
 //// measure battery voltage in mV
 
+
+#define VBAT_Read    1
+#define	ADC_Ctrl    37
+
+
 int16_t batteryVoltage() {      /// measure battery voltage and return result in milliVolts
-  
+/* 
       // board version 3 requires Vext being on for reading the battery voltage
       if (MorsePreferences::boardVersion == 3)
          digitalWrite(Vext,LOW);
@@ -2077,8 +2043,8 @@ int16_t batteryVoltage() {      /// measure battery voltage and return result in
       else if (MorsePreferences::boardVersion == 4)
 #if HELTEC_VERSION == V3
         {
-         pinMode(37,OUTPUT); // this is required to allow voltage measurement via GPIO 1 on lora v3 board
-         digitalWrite(37, LOW);
+         // pinMode(37,OUTPUT); // this is required to allow voltage measurement via GPIO 1 on lora v3 board
+         // digitalWrite(37, LOW);
         }
 #else
          digitalWrite(Vext,HIGH);
@@ -2096,6 +2062,31 @@ int16_t batteryVoltage() {      /// measure battery voltage and return result in
       voltage_raw = v;
       v *= (MorsePreferences::vAdjust * 12.9);      // adjust measurement and convert to millivolts
       return (int16_t) v;                                                                                       
+*/
+  pinMode(ADC_Ctrl,OUTPUT);
+  pinMode(VBAT_Read,INPUT);
+  adcAttachPin(VBAT_Read);
+  analogReadResolution(12);
+
+  const int resolution = 12;
+  const int adcMax = pow(2,resolution) - 1;
+  const float adcMaxVoltage = 3.3;
+  // On-board voltage divider
+  const int R1 = 390;
+  const int R2 = 100;
+  // resistor factor
+  const float factor = (adcMaxVoltage / adcMax) * ((R1 + R2)/(float)R2);
+
+  digitalWrite(ADC_Ctrl,LOW);
+  delay(100);
+  int analogValue = analogRead(VBAT_Read);
+  digitalWrite(ADC_Ctrl,HIGH);
+
+  float floatVoltage = factor * analogValue;
+      voltage_raw = floatVoltage;
+  int16_t voltage = (int)(floatVoltage * 1000.0);
+  return voltage * (MorsePreferences::vAdjust) / 200.0;  // 155 - 254
+
 }
 
 
@@ -2142,7 +2133,9 @@ void shutMeDown() {
   
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0); //1 = High, 0 = Low
 
+#ifdef LORA
   LoRa.sleep();                   //LORA sleep
+#endif
   WiFi.disconnect(true, false);
   delay(100);
   digitalWrite(Vext,HIGH);
@@ -2214,11 +2207,13 @@ void cwForTx (int element) {
 
 void sendWithLora() {           // hand this string over as payload to the LoRA transceiver
   // send packet
+#ifdef LORA
   LoRa.beginPacket();
   LoRa.print(cwTxBuffer);
   LoRa.endPacket();
   if (morseState == loraTrx)
       LoRa.receive();
+#endif
 }
 
 void sendWithWifi() {           // hand this string over as payload to the WiFi transceiver
@@ -2250,7 +2245,9 @@ void onLoraReceive(int packetSize){
   // read packet
   for (int i = 0; i < maxl; i++)
   {
+#ifdef LORA
     result += (char)LoRa.read();
+#endif
   }
   //DEBUG("@2162: 0st byte: " + String(int(result.charAt(0)), BIN ));
   //DEBUG("@2162: 1st byte: " + String(int(result.charAt(1)), BIN ));
@@ -2263,7 +2260,9 @@ void onLoraReceive(int packetSize){
   }
   if ((result.charAt(1) & 0b00000011) && packetSize <= sizeof(cwTxBuffer)) {    // 1st actual morse element must not be 0b00
     //DEBUG("@2170: packetSize: " + String(packetSize));
+#ifdef LORA
       storePacket(LoRa.packetRssi(), result);
+#endif
       return;
   }
   if (reason == "")

@@ -136,7 +136,9 @@ void MorseMenu::menu_() {
    int t, command;
    m32state = menu_loop;
       
+#ifdef LORA
     LoRa.idle();
+#endif
     WiFi.disconnect(true, false);
     genIsActive = false;
     cleanStartSettings();
@@ -430,7 +432,9 @@ boolean MorseMenu::menuExec() {                                          // retu
                 showStartDisplay("", "Start LoRa Trx", "", 500);
                 clearPaddleLatches();
                 clearText = "";
+#ifdef LORA
                 LoRa.receive();
+#endif
                 executeNow = false;
                 return true;
                 break;
