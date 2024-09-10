@@ -2031,7 +2031,6 @@ String cleanUpProSigns( String &input ) {
 
 
 #define VBAT_Read    1
-#define	ADC_Ctrl    37
 
 
 int16_t batteryVoltage() {      /// measure battery voltage and return result in milliVolts
@@ -2063,7 +2062,7 @@ int16_t batteryVoltage() {      /// measure battery voltage and return result in
       v *= (MorsePreferences::vAdjust * 12.9);      // adjust measurement and convert to millivolts
       return (int16_t) v;                                                                                       
 */
-  pinMode(ADC_Ctrl,OUTPUT);
+  pinMode(ADC_CTRL,OUTPUT);
   pinMode(VBAT_Read,INPUT);
   adcAttachPin(VBAT_Read);
   analogReadResolution(12);
@@ -2077,10 +2076,10 @@ int16_t batteryVoltage() {      /// measure battery voltage and return result in
   // resistor factor
   const float factor = (adcMaxVoltage / adcMax) * ((R1 + R2)/(float)R2);
 
-  digitalWrite(ADC_Ctrl,LOW);
+  digitalWrite(ADC_CTRL,LOW);
   delay(100);
   int analogValue = analogRead(VBAT_Read);
-  digitalWrite(ADC_Ctrl,HIGH);
+  digitalWrite(ADC_CTRL,HIGH);
 
   float floatVoltage = factor * analogValue;
       voltage_raw = floatVoltage;
