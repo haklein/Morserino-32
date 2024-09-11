@@ -16,6 +16,11 @@
 #include "MorseOutput.h"
 #include "MorseDecoder.h"
 
+
+#include  "SSD1306Wire.h"
+extern SSD1306Wire display;
+
+
 using namespace MorseMenu;
 
 //////// variables and constants for the modus menu
@@ -166,7 +171,7 @@ void MorseMenu::menu_() {
             if (m32protocol)
               jsonCreate("message", "Quick Start", "");
             MorseOutput::printOnScroll(2, REGULAR, 1, "QUICK START");
-            Heltec.display -> display();
+            display.display();
             delay(600);
             MorseOutput::clearDisplay();
         }

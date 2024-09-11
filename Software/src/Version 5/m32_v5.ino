@@ -31,7 +31,7 @@
 
 #include "wklfonts.h"         // monospaced fonts in size 12 (regular and bold) for smaller text and 15 for larger text (regular and bold), called :
                               // DialogInput_plain_12, DialogInput_bold_12 & DialogInput_plain_15, DialogInput_bold_15
-                              // these fonts were created with this tool: http://oledHeltec.display -> squix.ch/#/home
+                              // these fonts were created with this tool: http://oleddisplay.squix.ch/#/home
 #include "abbrev.h"           // common CW abbreviations
 #include "english_words.h"    // common English words
 #include "MorseOutput.h"      // display and sound functions
@@ -49,6 +49,10 @@ I2S_Sidetone sidetone;
 #include <ESP32Encoder.h>
 
 ESP32Encoder encoder;
+
+#include  "SSD1306Wire.h"
+SSD1306Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_ONE, 700000);
+
 
 // define the buttons for the clickbutton library, & other classes that we need
 
@@ -411,11 +415,23 @@ void setup()
  // init display, LoRa
 #if HELTEC_VERSION == V3
   // disable LoRa for now
-  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
+  //Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
+  pinMode(VEXT, OUTPUT);
+  digitalWrite(VEXT, LOW);
+
+  pinMode(OLED_RST, OUTPUT);
+  digitalWrite(OLED_RST, LOW);
+  delay(20);
+  digitalWrite(OLED_RST, HIGH);
+  display.init();
+  display.flipScreenVertically();
+  display.clear();
+
+
 #else
   Heltec.begin(true /*DisplayEnable Enable*/, true /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
 #endif
-  Heltec.display -> setBrightness(MorsePreferences::oledBrightness);
+  display.setBrightness(MorsePreferences::oledBrightness);
   MorseOutput::clearDisplay();
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
   MorseOutput::soundSetup();
@@ -1899,7 +1915,7 @@ void displayCWspeed() {
     sprintf(numBuf, "%2i", (morseState == morseDecoder ? wpm : MorsePreferences::wpm));         // d_wpm (decode) or p_wpm (default)
   MorseOutput::printOnStatusLine(encoderState == speedSettingMode ? true : false, 7,  numBuf);
   MorseOutput::printOnStatusLine(false, 10,  "WpM");
-  Heltec.display -> display();
+  display.display();
 }
 
 
@@ -1928,7 +1944,7 @@ void updateTopLine() {
       MorseOutput::dispWifiLogo();
 
   MorseOutput::displayVolume(encoderState == speedSettingMode, MorsePreferences::sidetoneVolume);                                     // sidetone volume
-  Heltec.display -> display();
+  display.display();
 }
 
 
@@ -2118,7 +2134,7 @@ void checkShutDown(boolean enforce) {       /// if enforce == true, we shut donw
           MorseOutput::printOnScroll(2, REGULAR, 0, "RED to turn ON");
           if (m32protocol)
                   jsonCreate("message", "Power off", "");
-          Heltec.display -> display();
+          display.display();
           delay (1500);
           shutMeDown();
       }

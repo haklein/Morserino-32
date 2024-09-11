@@ -2,7 +2,6 @@
 #define MORSEDISPLAY_H_
 
 #include "Arduino.h"
-#include "heltec.h"
 
 #define NoOfLines 15
 

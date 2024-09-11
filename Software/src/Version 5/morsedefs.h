@@ -16,7 +16,6 @@
 #define MORSEDEFS_H
 
 #include "Arduino.h"
-#include "heltec.h"
 #include <ArduinoJson.h>
 #include "ClickButton.h"   // button control library
 #include "WiFi.h"
@@ -28,6 +27,8 @@
 #include <Update.h>        // update "over the air" (OTA) functionality
 #include "FS.h"
 #include "SPIFFS.h"
+
+#include "LoRa.h"
 
 /////// Program Name & Version
 

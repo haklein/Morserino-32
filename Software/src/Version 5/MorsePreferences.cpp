@@ -20,6 +20,9 @@
 #include "ClickButton.h"   // button control library
 #include "goertzel.h"
 
+#include  "SSD1306Wire.h"
+extern SSD1306Wire display;
+
 using namespace MorsePreferences;
 
 Preferences pref;               // use the Preferences library for storing and retrieving objects
@@ -578,7 +581,7 @@ boolean MorsePreferences::setupPreferences(uint8_t atMenu) {
             displayKeyerPreferencesMenu(posPtr);
             MorseOutput::printOnScroll(2, REGULAR, 0, " ");
 
-            Heltec.display -> display();                                                        // update the display
+            display.display();                                                        // update the display
          }    // end if (encoderPos)
          checkShutDown(false);         // check for time out
   } // end while - we leave as soon as the button has been pressed long
@@ -885,7 +888,7 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
                   }
             }
             displayValueLine(pos, itemLine, false);          /// now display the value
-            Heltec.display -> display();                                                      // update the display
+            display.display();                                                      // update the display
          }      // end if     (checkEncoder)
          checkShutDown(false);         // check for time out
     }    // end while(true)
