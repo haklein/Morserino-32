@@ -412,25 +412,24 @@ void setup()
   
   analogSetAttenuation(ADC_0db);
 
- // init display, LoRa
-#if HELTEC_VERSION == V3
-  // disable LoRa for now
-  //Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
+#ifdef VEXT
+  Serial.println("Enable VEXT");
   pinMode(VEXT, OUTPUT);
   digitalWrite(VEXT, LOW);
+#endif
 
+#ifdef OLED_RST
+  Serial.println("SSD1306 display reset");
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
   delay(20);
   digitalWrite(OLED_RST, HIGH);
+#endif
+
   display.init();
   display.flipScreenVertically();
   display.clear();
 
-
-#else
-  Heltec.begin(true /*DisplayEnable Enable*/, true /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
-#endif
   display.setBrightness(MorsePreferences::oledBrightness);
   MorseOutput::clearDisplay();
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
@@ -504,13 +503,6 @@ void setup()
   // register the receive callback
   LoRa.onReceive(onLoraReceive);
 #endif 
-
-/*
-while (true) {
-	bool keystate = digitalRead(modeButtonPin);
-	Serial.println(keystate);
-}
-*/
 
   /// initialise the serial number
   cwTxSerial = random(64);
