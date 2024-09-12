@@ -23,6 +23,11 @@
 #include  "SSD1306Wire.h"
 extern SSD1306Wire display;
 
+#ifdef LORA
+#include <RadioLib.h>
+extern SX1262 radio;
+#endif
+
 using namespace MorsePreferences;
 
 Preferences pref;               // use the Preferences library for storing and retrieving objects
@@ -1159,7 +1164,8 @@ void MorsePreferences::writePreferences(String repository) {
               case posLoraChannel:
                     if (morserino)
 #ifdef LORA
-                      LoRa.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
+			radio.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
+                    //  LoRa.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
 #endif
                     break;
               case posGoertzelBandwidth:

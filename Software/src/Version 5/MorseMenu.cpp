@@ -16,10 +16,13 @@
 #include "MorseOutput.h"
 #include "MorseDecoder.h"
 
-
 #include  "SSD1306Wire.h"
 extern SSD1306Wire display;
 
+#ifdef LORA
+#include <RadioLib.h>
+extern SX1262 radio;
+#endif
 
 using namespace MorseMenu;
 
@@ -142,7 +145,7 @@ void MorseMenu::menu_() {
    m32state = menu_loop;
       
 #ifdef LORA
-    LoRa.idle();
+    radio.standby();
 #endif
     WiFi.disconnect(true, false);
     genIsActive = false;
@@ -438,7 +441,8 @@ boolean MorseMenu::menuExec() {                                          // retu
                 clearPaddleLatches();
                 clearText = "";
 #ifdef LORA
-                LoRa.receive();
+		radio.startReceive();
+                // LoRa.receive();
 #endif
                 executeNow = false;
                 return true;

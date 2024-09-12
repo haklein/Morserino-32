@@ -28,7 +28,9 @@
 #include "FS.h"
 #include "SPIFFS.h"
 
-#include "LoRa.h"
+#ifdef LORA
+#include <RadioLib.h>
+#endif
 
 /////// Program Name & Version
 

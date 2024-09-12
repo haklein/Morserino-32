@@ -53,6 +53,10 @@ ESP32Encoder encoder;
 #include  "SSD1306Wire.h"
 SSD1306Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_ONE, 700000);
 
+#ifdef LORA
+SX1262 radio = new Module(LoRa_nss, LoRa_dio1, LoRa_nrst, LoRa_busy);
+#endif
+bool loraReceived = false;
 
 // define the buttons for the clickbutton library, & other classes that we need
 
@@ -72,7 +76,7 @@ ClickButton Buttons::volButton(volButtonPin);               // external pullup f
 
 Decoder keyDecoder(USE_KEY);
 Decoder audioDecoder(USE_AUDIO);
-MorseTable keyerTable;
+M32MorseTable keyerTable;
 Koch koch;
 
 volatile int8_t _oldState;
@@ -345,6 +349,10 @@ void DEBUG (String s) {
 
 ////////////////////////   S E T U P /////////////////////////////
 
+void packetReceived() {
+  loraReceived = true;
+}
+
 void setup()
 {
    //// the order of the following steps is important:
@@ -490,8 +498,61 @@ void setup()
 
 // #if HELTEC_VERSION != V3
 ////////////  Setup for LoRa
-
 #ifdef LORA
+  SPI.begin(LoRa_SCK, LoRa_MISO, LoRa_MOSI, LoRa_nss);
+  Serial.print(F("[SX1262] Initializing ... "));
+  int state = radio.begin();
+  if (state == RADIOLIB_ERR_NONE)
+  {
+    Serial.println(F("success!"));
+  }
+  else
+  {
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+    while (true)
+      ;
+  }
+
+  if (radio.setFrequency(MorsePreferences::loraQRG/1000000.0) == RADIOLIB_ERR_INVALID_FREQUENCY) {
+    Serial.println(F("Selected frequency is invalid for this module!"));
+    Serial.println(MorsePreferences::loraQRG / 1000000.0);
+    while (true) { delay(10); }
+  }
+
+  if (radio.setBandwidth(250.0) == RADIOLIB_ERR_INVALID_BANDWIDTH) {
+    Serial.println(F("Selected bandwidth is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  // set spreading factor to 7
+  if (radio.setSpreadingFactor(7) == RADIOLIB_ERR_INVALID_SPREADING_FACTOR) {
+    Serial.println(F("Selected spreading factor is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  // set LoRa sync word
+  if (radio.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66) != RADIOLIB_ERR_NONE) {
+    Serial.println(F("Unable to set sync word!"));
+    while (true) { delay(10); }
+  }
+
+  // set output power to 14 dBm (accepted range is -17 - 22 dBm)
+  if (radio.setOutputPower(MorsePreferences::loraPower) == RADIOLIB_ERR_INVALID_OUTPUT_POWER) {
+    Serial.println(F("Selected output power is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  // disable CRC
+  if (radio.setCRC(false) == RADIOLIB_ERR_INVALID_CRC_CONFIGURATION) {
+    Serial.println(F("Selected CRC is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  radio.setPacketReceivedAction(packetReceived);
+#endif
+
+/*
   LoRa.setFrequency(MorsePreferences::loraQRG+0000);                       /// default = 434.150 MHz - Region 1 ISM Band, can be changed by system setup
   LoRa.setSpreadingFactor(7);                         /// default
   LoRa.setSignalBandwidth(250E3);                     /// 250 kHz
@@ -502,7 +563,7 @@ void setup()
   
   // register the receive callback
   LoRa.onReceive(onLoraReceive);
-#endif 
+*/
 
   /// initialise the serial number
   cwTxSerial = random(64);
@@ -866,7 +927,11 @@ void loop() {
           }
     } // encoder 
     checkShutDown(false);         // check for time out
-    
+
+    if(loraReceived) {
+	loraReceived=false;
+	onLoraReceive();
+    }    
 }     /////////////////////// end of loop() /////////
 
 
@@ -2141,7 +2206,7 @@ void shutMeDown() {
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0); //1 = High, 0 = Low
 
 #ifdef LORA
-  LoRa.sleep();                   //LORA sleep
+  radio.sleep();                   //LORA sleep
 #endif
   WiFi.disconnect(true, false);
   delay(100);
@@ -2215,11 +2280,36 @@ void cwForTx (int element) {
 void sendWithLora() {           // hand this string over as payload to the LoRA transceiver
   // send packet
 #ifdef LORA
-  LoRa.beginPacket();
-  LoRa.print(cwTxBuffer);
-  LoRa.endPacket();
+  int state = radio.transmit(cwTxBuffer);
+  if (state == RADIOLIB_ERR_NONE)
+  {
+    // the packet was successfully transmitted
+    Serial.println(F("success!"));
+
+    // print measured data rate
+    Serial.print(F("[SX1262] Datarate:\t"));
+    Serial.print(radio.getDataRate());
+    Serial.println(F(" bps"));
+  }
+  else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
+  {
+    // the supplied packet was longer than 256 bytes
+    Serial.println(F("too long!"));
+  }
+  else if (state == RADIOLIB_ERR_TX_TIMEOUT)
+  {
+    // timeout occured while transmitting packet
+    Serial.println(F("timeout!"));
+  }
+  else
+  {
+    // some other error occurred
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+  }
   if (morseState == loraTrx)
-      LoRa.receive();
+    radio.startReceive();
+    //LoRa.receive();
 #endif
 }
 
@@ -2240,25 +2330,28 @@ void sendWithWifi() {           // hand this string over as payload to the WiFi 
   //MorseWiFi::udp.endPacket();
 }
 
-void onLoraReceive(int packetSize){
+void onLoraReceive(){
+  int packetSize = radio.getPacketLength();
   u_int maxl = sizeof(cwTxBuffer) < packetSize ? sizeof(cwTxBuffer) : packetSize;
   String result; 
   String reason = "";
   reason.reserve(9);
-  result.reserve(sizeof(cwTxBuffer));   // we should never receive a packet longer than the sender is allowed to send!
+  // result.reserve(sizeof(cwTxBuffer));   // we should never receive a packet longer than the sender is allowed to send!
   result = "";
 
   // received a packet
+  int state = radio.readData(result);
+  if (state == RADIOLIB_ERR_NONE) {
+      // packet was successfully received
+      Serial.println(F("[SX1262] Received packet!"));
   // read packet
-  for (int i = 0; i < maxl; i++)
-  {
-#ifdef LORA
-    result += (char)LoRa.read();
-#endif
-  }
-  //DEBUG("@2162: 0st byte: " + String(int(result.charAt(0)), BIN ));
-  //DEBUG("@2162: 1st byte: " + String(int(result.charAt(1)), BIN ));
-  //DEBUG("@2162: 2nd byte: " + String(int(result.charAt(2)), BIN ));
+  //for (int i = 0; i < maxl; i++)
+  //{
+    // result += (char)LoRa.read();
+  //}
+  DEBUG("@2162: 0st byte: " + String(int(result.charAt(0)), BIN ));
+  DEBUG("@2162: 1st byte: " + String(int(result.charAt(1)), BIN ));
+  DEBUG("@2162: 2nd byte: " + String(int(result.charAt(2)), BIN ));
   if (sizeof(cwTxBuffer) < packetSize)
     reason = "LENGTH";
   if ((result.charAt(0) & 0b11000000) != 0b01000000)  {     // check protocol version # 
@@ -2266,15 +2359,17 @@ void onLoraReceive(int packetSize){
     goto error;
   }
   if ((result.charAt(1) & 0b00000011) && packetSize <= sizeof(cwTxBuffer)) {    // 1st actual morse element must not be 0b00
-    //DEBUG("@2170: packetSize: " + String(packetSize));
-#ifdef LORA
-      storePacket(LoRa.packetRssi(), result);
-#endif
+    DEBUG("@2170: packetSize: " + String(packetSize));
+      // storePacket(radio.getRSSI(), result);
+      storePacket(0, result);
       return;
   }
   if (reason == "")
     reason = "EOFC";
   error:    DEBUG("Invalid LoRa Packet: " + reason + "! Discarded...");
+  } else {
+    Serial.println(F("[SX1262] INVALID PACKET!"));
+  }
 }
 
 void onWifiReceive(AsyncUDPPacket packet) {
