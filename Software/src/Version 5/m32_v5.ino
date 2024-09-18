@@ -58,6 +58,11 @@ SX1262 radio = new Module(LoRa_nss, LoRa_dio1, LoRa_nrst, LoRa_busy);
 #endif
 bool loraReceived = false;
 
+#include <TouchHandler.h>
+
+const int touchPins[] = { TOUCH_LEFT, TOUCH_RIGHT };
+TouchHandler touchHandler(touchPins, 2);
+
 // define the buttons for the clickbutton library, & other classes that we need
 
 /// variables, value defined at setup()
@@ -441,6 +446,12 @@ void setup()
   display.setBrightness(MorsePreferences::oledBrightness);
   MorseOutput::clearDisplay();
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
+// shutdown pin for MAX98357A, HIGH to enable, LOW to sleep
+#ifdef SD_MODE_PIN
+  pinMode(SD_MODE_PIN,OUTPUT);
+  digitalWrite(SD_MODE_PIN, HIGH);
+  delay(1);
+#endif
   MorseOutput::soundSetup();
 
   encoderPos = 0;           /// this is the encoder position
@@ -490,7 +501,9 @@ void setup()
 
   // to calibrate sensors, we record the values in untouched state; need to do this after checking for system config
   initSensors();
-
+  touchHandler.begin();
+  touchHandler.setSensitivity(0.8);
+  touchHandler.setSamplePeriod(2);
 
 
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
@@ -598,6 +611,8 @@ void setup()
       Serial.read();
     inputString = "";
     MorseMenu::menu_();
+
+
 } /////////// END setup()
 
 
@@ -932,6 +947,9 @@ void loop() {
 	loraReceived=false;
 	onLoraReceive();
     }    
+
+    touchHandler.update();
+
 }     /////////////////////// end of loop() /////////
 
 
@@ -1294,9 +1312,7 @@ void togglePolarity () {
 /// binary:   00          01                10                11
 
 uint8_t readSensors(int left, int right, boolean init) {
-#if HELTEC_VERSION==V3
-  return 0;
-#endif
+/*
   //long int timer = micros();
   //static boolean first = true;
   uint8_t v, lValue, rValue;
@@ -1307,7 +1323,8 @@ uint8_t readSensors(int left, int right, boolean init) {
    while ( !(v=touchRead(right)) )
     ;                                       // ignore readings with value 0
   rValue = v;
-
+  Serial.print("Values:"); Serial.printf("%03d %03d\r\n",lValue,rValue); //Serial.print(" "); Serial.println(rValue);
+  // Serial.print("Values:"); Serial.print(lValue); Serial.print(" "); Serial.println(rValue);
   if (init == false) {
     if (lValue < (MorsePreferences::tLeft+10))     {           //adaptive calibration
         MorsePreferences::tLeft = ( 7*MorsePreferences::tLeft +  ((lValue+lUntouched) / SENS_FACTOR) ) / 8;
@@ -1315,20 +1332,27 @@ uint8_t readSensors(int left, int right, boolean init) {
     if (rValue < (MorsePreferences::tRight+10))     {           //adaptive calibration
         MorsePreferences::tRight = ( 7*MorsePreferences::tRight +  ((rValue+rUntouched) / SENS_FACTOR) ) / 8;
     }
+#ifndef TOUCH_PADDLES
+    return 0;
+#endif
     return ( lValue < MorsePreferences::tLeft ? 2 : 0 ) + (rValue < MorsePreferences::tRight ? 1 : 0 );
   } else {
-    //DEBUG("@1216: tLeft: " + String(MorsePreferences::tLeft));
+    DEBUG("@1216: tLeft: " + String(MorsePreferences::tLeft));
     //lValue -=25; rValue -=25;
-    //DEBUG("@1216: lValue, rValue: " + String (lValue) + " " + String(rValue));
+    DEBUG("@1216: lValue, rValue: " + String (lValue) + " " + String(rValue));
     if (lValue < 32 || rValue < 32)
       return 3;
     else
       return 0; 
   }
+*/
+
+    return ( touchHandler.isTouched(0) ? 2 : 0 ) + (touchHandler.isTouched(1) ? 1 : 0 );
 }
 
 
 void initSensors() {
+/*
   int v;
   lUntouched = rUntouched = 60;       /// new: we seek minimum
   for (int i=0; i<8; ++i) {
@@ -1343,8 +1367,13 @@ void initSensors() {
   }
   lUntouched /= 8;
   rUntouched /= 8;
+  Serial.println("Touch untouched vals:");
+  Serial.println(lUntouched - 9);
+  Serial.println(rUntouched - 9);
+
   MorsePreferences::tLeft = lUntouched - 9;
   MorsePreferences::tRight = rUntouched - 9;
+*/
 }
 
 
@@ -2208,6 +2237,12 @@ void shutMeDown() {
 #ifdef LORA
   radio.sleep();                   //LORA sleep
 #endif
+
+#ifdef SD_MODE_PIN
+    pinMode(SD_MODE_PIN,OUTPUT);
+    digitalWrite(SD_MODE_PIN, HIGH);
+#endif
+
   WiFi.disconnect(true, false);
   delay(100);
   digitalWrite(Vext,HIGH);
