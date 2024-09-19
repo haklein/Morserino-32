@@ -58,11 +58,6 @@ SX1262 radio = new Module(LoRa_nss, LoRa_dio1, LoRa_nrst, LoRa_busy);
 #endif
 bool loraReceived = false;
 
-#include <TouchHandler.h>
-
-const int touchPins[] = { TOUCH_LEFT, TOUCH_RIGHT };
-TouchHandler touchHandler(touchPins, 2);
-
 // define the buttons for the clickbutton library, & other classes that we need
 
 /// variables, value defined at setup()
@@ -146,8 +141,8 @@ int8_t maxMemCount = 0;
 unsigned int interCharacterSpace, interWordSpace;   // need to be properly initialised!
 unsigned int halfICS;                               // used for word doubling: half of extra ICS
 unsigned int effWpm;                                // calculated effective speed in WpM
-unsigned int lUntouched = 0;                        // sensor values (in untouched state) will be stored here
-unsigned int rUntouched = 0;
+uint32_t lUntouched = 0;                        // sensor values (in untouched state) will be stored here
+uint32_t rUntouched = 0;
 
 boolean alternatePitch = false;                     // to change pitch in CW generator / file player
 
@@ -501,10 +496,6 @@ void setup()
 
   // to calibrate sensors, we record the values in untouched state; need to do this after checking for system config
   initSensors();
-  touchHandler.begin();
-  touchHandler.setSensitivity(0.8);
-  touchHandler.setSamplePeriod(2);
-
 
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
   quickStart = MorsePreferences::pliste[posQuickStart].value;
@@ -948,8 +939,6 @@ void loop() {
 	onLoraReceive();
     }    
 
-    touchHandler.update();
-
 }     /////////////////////// end of loop() /////////
 
 
@@ -1312,10 +1301,9 @@ void togglePolarity () {
 /// binary:   00          01                10                11
 
 uint8_t readSensors(int left, int right, boolean init) {
-/*
   //long int timer = micros();
   //static boolean first = true;
-  uint8_t v, lValue, rValue;
+  uint32_t v, lValue, rValue;
   
   while ( !(v=touchRead(left)) )
     ;                                       // ignore readings with value 0
@@ -1323,19 +1311,19 @@ uint8_t readSensors(int left, int right, boolean init) {
    while ( !(v=touchRead(right)) )
     ;                                       // ignore readings with value 0
   rValue = v;
-  Serial.print("Values:"); Serial.printf("%03d %03d\r\n",lValue,rValue); //Serial.print(" "); Serial.println(rValue);
+  // Serial.print("Values:"); Serial.printf("%03d %03d\r\n",lValue,rValue); //Serial.print(" "); Serial.println(rValue);
   // Serial.print("Values:"); Serial.print(lValue); Serial.print(" "); Serial.println(rValue);
   if (init == false) {
-    if (lValue < (MorsePreferences::tLeft+10))     {           //adaptive calibration
-        MorsePreferences::tLeft = ( 7*MorsePreferences::tLeft +  ((lValue+lUntouched) / SENS_FACTOR) ) / 8;
-    }
-    if (rValue < (MorsePreferences::tRight+10))     {           //adaptive calibration
-        MorsePreferences::tRight = ( 7*MorsePreferences::tRight +  ((rValue+rUntouched) / SENS_FACTOR) ) / 8;
-    }
+    //if (lValue > (MorsePreferences::tLeft-10))     {           //adaptive calibration
+    //    MorsePreferences::tLeft = ( 7*MorsePreferences::tLeft +  ((lValue+lUntouched) / SENS_FACTOR) ) / 8;
+    //}
+    //if (rValue > (MorsePreferences::tRight-10))     {           //adaptive calibration
+     //   MorsePreferences::tRight = ( 7*MorsePreferences::tRight +  ((rValue+rUntouched) / SENS_FACTOR) ) / 8;
+    //}
 #ifndef TOUCH_PADDLES
     return 0;
 #endif
-    return ( lValue < MorsePreferences::tLeft ? 2 : 0 ) + (rValue < MorsePreferences::tRight ? 1 : 0 );
+    return ( lValue > MorsePreferences::tLeft ? 2 : 0 ) + (rValue > MorsePreferences::tRight ? 1 : 0 );
   } else {
     DEBUG("@1216: tLeft: " + String(MorsePreferences::tLeft));
     //lValue -=25; rValue -=25;
@@ -1345,35 +1333,33 @@ uint8_t readSensors(int left, int right, boolean init) {
     else
       return 0; 
   }
-*/
-
-    return ( touchHandler.isTouched(0) ? 2 : 0 ) + (touchHandler.isTouched(1) ? 1 : 0 );
 }
 
 
 void initSensors() {
-/*
-  int v;
-  lUntouched = rUntouched = 60;       /// new: we seek minimum
-  for (int i=0; i<8; ++i) {
+  uint32_t v;
+  lUntouched = rUntouched = 20;       /// new: we seek minimum
+  for (int i=0; i<32; ++i) {
+      Serial.println(i);
       while ( !(v=touchRead(LEFT)) )
         ;                                       // ignore readings with value 0
+        Serial.println(v);
         lUntouched += v;
         //lUntouched = _min(lUntouched, v);
        while ( !(v=touchRead(RIGHT)) )
         ;                                       // ignore readings with value 0
+        Serial.println(v);
         rUntouched += v;
         //rUntouched = _min(rUntouched, v);
   }
-  lUntouched /= 8;
-  rUntouched /= 8;
+  lUntouched /= 32;
+  rUntouched /= 32;
   Serial.println("Touch untouched vals:");
-  Serial.println(lUntouched - 9);
-  Serial.println(rUntouched - 9);
+  Serial.println(lUntouched);
+  Serial.println(rUntouched);
 
-  MorsePreferences::tLeft = lUntouched - 9;
-  MorsePreferences::tRight = rUntouched - 9;
-*/
+  MorsePreferences::tLeft = lUntouched +10000 ;
+  MorsePreferences::tRight = rUntouched +10000;
 }
 
 
