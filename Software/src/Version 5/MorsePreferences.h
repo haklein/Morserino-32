@@ -92,8 +92,8 @@ namespace MorsePreferences
 
   extern uint32_t fileWordPointer;
   extern uint8_t promptPause;
-  extern uint8_t tLeft;
-  extern uint8_t tRight;
+  extern uint32_t tLeft;
+  extern uint32_t tRight;
   extern uint8_t vAdjust;
   extern uint8_t loraBand;
  #define QRG433 434.15E6

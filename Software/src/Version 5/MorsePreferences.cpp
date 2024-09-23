@@ -20,6 +20,14 @@
 #include "ClickButton.h"   // button control library
 #include "goertzel.h"
 
+#include  "SSD1306Wire.h"
+extern SSD1306Wire display;
+
+#ifdef LORA
+#include <RadioLib.h>
+extern SX1262 radio;
+#endif
+
 using namespace MorsePreferences;
 
 Preferences pref;               // use the Preferences library for storing and retrieving objects
@@ -367,8 +375,8 @@ uint8_t MorsePreferences::loraPower = 14;                   // default 14 dBm = 
 
   uint32_t MorsePreferences::fileWordPointer = 0;             // remember how far we have read the file in player mode / reset when loading new file
   //uint8_t MorsePreferences::promptPause = 2;                  // in echoTrainer mode, length of pause before we send next word; multiplied by interWordSpace
-  uint8_t MorsePreferences::tLeft = 20;                       // threshold for left paddle
-  uint8_t MorsePreferences::tRight = 20;                      // threshold for right paddle
+  uint32_t MorsePreferences::tLeft = 20;                       // threshold for left paddle
+  uint32_t MorsePreferences::tRight = 20;                      // threshold for right paddle
 
   uint8_t MorsePreferences::vAdjust = 180;                    // correction value: 155 - 250
 
@@ -578,7 +586,7 @@ boolean MorsePreferences::setupPreferences(uint8_t atMenu) {
             displayKeyerPreferencesMenu(posPtr);
             MorseOutput::printOnScroll(2, REGULAR, 0, " ");
 
-            Heltec.display -> display();                                                        // update the display
+            display.display();                                                        // update the display
          }    // end if (encoderPos)
          checkShutDown(false);         // check for time out
   } // end while - we leave as soon as the button has been pressed long
@@ -885,7 +893,7 @@ boolean MorsePreferences::adjustKeyerPreference(prefPos pos) {        /// rotati
                   }
             }
             displayValueLine(pos, itemLine, false);          /// now display the value
-            Heltec.display -> display();                                                      // update the display
+            display.display();                                                      // update the display
          }      // end if     (checkEncoder)
          checkShutDown(false);         // check for time out
     }    // end while(true)
@@ -1156,7 +1164,8 @@ void MorsePreferences::writePreferences(String repository) {
               case posLoraChannel:
                     if (morserino)
 #ifdef LORA
-                      LoRa.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
+			radio.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
+                    //  LoRa.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66);
 #endif
                     break;
               case posGoertzelBandwidth:

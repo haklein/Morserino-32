@@ -16,7 +16,6 @@
 #define MORSEDEFS_H
 
 #include "Arduino.h"
-#include "heltec.h"
 #include <ArduinoJson.h>
 #include "ClickButton.h"   // button control library
 #include "WiFi.h"
@@ -29,15 +28,19 @@
 #include "FS.h"
 #include "SPIFFS.h"
 
+#ifdef LORA
+#include <RadioLib.h>
+#endif
+
 /////// Program Name & Version
 
 const String PROJECTNAME = "Morserino-32";
 
-#define VERSION_MAJOR 5
-#define VERSION_MINOR 1
-#define VERSION_PATCH 3
+#define VERSION_MAJOR 6
+#define VERSION_MINOR 0
+#define VERSION_PATCH 0
 
-#define BETA false
+#define BETA true
 
 // using the M32 serial protocol
 
@@ -123,9 +126,9 @@ const int modeButtonPin = ROT_BTN; // 46; // v2 had 37;
 const int volButtonPin = VOL_BUTTON; // same on v2
 const int LF_Pin = LF_PIN; // v2 had 23;    // for the lower (= NF) frequency generation
 const int HF_Pin = HF_PIN; // v2 had 22;    // for the HF PWM generation
-const int LEFT = 1; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
-const int RIGHT = 3; // v2 had T5;       // = Pin 12
-const int keyerPin = 2; // v2 had 25;        // this keys the transmitter / through a MOSFET Optocoupler - at the same time lights up the LED
+const int LEFT = TOUCH_LEFT; // 6 is fake, real pin on v3 is 26; // v2 had T2;        // = Pin 2
+const int RIGHT = TOUCH_RIGHT; // v2 had T5;       // = Pin 12
+const int keyerPin = KEYER_PIN; // v2 had 25;        // this keys the transmitter / through a MOSFET Optocoupler - at the same time lights up the LED
 const int audioInPin = 7; // 7 is fake, original pin is 37; // v2 had 36;      // audio in for Morse decoder
 const int lineOutPin = 20; // v2 had 17; // for NF line out
 			   //
@@ -182,7 +185,9 @@ const int lineOutPin = 17; // for NF line out
 */
 
 // SENS_FACTOR is used for auto-calibrating sensitivity of touch paddles (somewhere between 2.0 and 2.5)
+#ifndef SENS_FACTOR
 #define SENS_FACTOR 2.22
+#endif
 
 #define BAND    433E6  //you can set band here directly,e.g. 868E6,915E6
 

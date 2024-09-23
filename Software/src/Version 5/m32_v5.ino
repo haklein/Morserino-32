@@ -31,7 +31,7 @@
 
 #include "wklfonts.h"         // monospaced fonts in size 12 (regular and bold) for smaller text and 15 for larger text (regular and bold), called :
                               // DialogInput_plain_12, DialogInput_bold_12 & DialogInput_plain_15, DialogInput_bold_15
-                              // these fonts were created with this tool: http://oledHeltec.display -> squix.ch/#/home
+                              // these fonts were created with this tool: http://oleddisplay.squix.ch/#/home
 #include "abbrev.h"           // common CW abbreviations
 #include "english_words.h"    // common English words
 #include "MorseOutput.h"      // display and sound functions
@@ -49,6 +49,14 @@ I2S_Sidetone sidetone;
 #include <ESP32Encoder.h>
 
 ESP32Encoder encoder;
+
+#include  "SSD1306Wire.h"
+SSD1306Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_ONE, 700000);
+
+#ifdef LORA
+SX1262 radio = new Module(LoRa_nss, LoRa_dio1, LoRa_nrst, LoRa_busy);
+#endif
+bool loraReceived = false;
 
 // define the buttons for the clickbutton library, & other classes that we need
 
@@ -68,7 +76,7 @@ ClickButton Buttons::volButton(volButtonPin);               // external pullup f
 
 Decoder keyDecoder(USE_KEY);
 Decoder audioDecoder(USE_AUDIO);
-MorseTable keyerTable;
+M32MorseTable keyerTable;
 Koch koch;
 
 volatile int8_t _oldState;
@@ -133,8 +141,8 @@ int8_t maxMemCount = 0;
 unsigned int interCharacterSpace, interWordSpace;   // need to be properly initialised!
 unsigned int halfICS;                               // used for word doubling: half of extra ICS
 unsigned int effWpm;                                // calculated effective speed in WpM
-unsigned int lUntouched = 0;                        // sensor values (in untouched state) will be stored here
-unsigned int rUntouched = 0;
+uint32_t lUntouched = 0;                        // sensor values (in untouched state) will be stored here
+uint32_t rUntouched = 0;
 
 boolean alternatePitch = false;                     // to change pitch in CW generator / file player
 
@@ -341,6 +349,10 @@ void DEBUG (String s) {
 
 ////////////////////////   S E T U P /////////////////////////////
 
+void packetReceived() {
+  loraReceived = true;
+}
+
 void setup()
 {
    //// the order of the following steps is important:
@@ -408,16 +420,33 @@ void setup()
   
   analogSetAttenuation(ADC_0db);
 
- // init display, LoRa
-#if HELTEC_VERSION == V3
-  // disable LoRa for now
-  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
-#else
-  Heltec.begin(true /*DisplayEnable Enable*/, true /*LoRa Enable*/, true /*Serial Enable*/, true /*LoRa use PABOOST*/, BAND /*LoRa RF working band*/);
+#ifdef VEXT
+  Serial.println("Enable VEXT");
+  pinMode(VEXT, OUTPUT);
+  digitalWrite(VEXT, LOW);
 #endif
-  Heltec.display -> setBrightness(MorsePreferences::oledBrightness);
+
+#ifdef OLED_RST
+  Serial.println("SSD1306 display reset");
+  pinMode(OLED_RST, OUTPUT);
+  digitalWrite(OLED_RST, LOW);
+  delay(20);
+  digitalWrite(OLED_RST, HIGH);
+#endif
+
+  display.init();
+  display.flipScreenVertically();
+  display.clear();
+
+  display.setBrightness(MorsePreferences::oledBrightness);
   MorseOutput::clearDisplay();
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
+// shutdown pin for MAX98357A, HIGH to enable, LOW to sleep
+#ifdef SD_MODE_PIN
+  pinMode(SD_MODE_PIN,OUTPUT);
+  digitalWrite(SD_MODE_PIN, HIGH);
+  delay(1);
+#endif
   MorseOutput::soundSetup();
 
   encoderPos = 0;           /// this is the encoder position
@@ -468,15 +497,66 @@ void setup()
   // to calibrate sensors, we record the values in untouched state; need to do this after checking for system config
   initSensors();
 
-
-
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
   quickStart = MorsePreferences::pliste[posQuickStart].value;
 
 // #if HELTEC_VERSION != V3
 ////////////  Setup for LoRa
-
 #ifdef LORA
+  SPI.begin(LoRa_SCK, LoRa_MISO, LoRa_MOSI, LoRa_nss);
+  Serial.print(F("[SX1262] Initializing ... "));
+  int state = radio.begin();
+  if (state == RADIOLIB_ERR_NONE)
+  {
+    Serial.println(F("success!"));
+  }
+  else
+  {
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+    while (true)
+      ;
+  }
+
+  if (radio.setFrequency(MorsePreferences::loraQRG/1000000.0) == RADIOLIB_ERR_INVALID_FREQUENCY) {
+    Serial.println(F("Selected frequency is invalid for this module!"));
+    Serial.println(MorsePreferences::loraQRG / 1000000.0);
+    while (true) { delay(10); }
+  }
+
+  if (radio.setBandwidth(250.0) == RADIOLIB_ERR_INVALID_BANDWIDTH) {
+    Serial.println(F("Selected bandwidth is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  // set spreading factor to 7
+  if (radio.setSpreadingFactor(7) == RADIOLIB_ERR_INVALID_SPREADING_FACTOR) {
+    Serial.println(F("Selected spreading factor is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  // set LoRa sync word
+  if (radio.setSyncWord(MorsePreferences::pliste[posLoraChannel].value == 0 ? 0x27 : 0x66) != RADIOLIB_ERR_NONE) {
+    Serial.println(F("Unable to set sync word!"));
+    while (true) { delay(10); }
+  }
+
+  // set output power to 14 dBm (accepted range is -17 - 22 dBm)
+  if (radio.setOutputPower(MorsePreferences::loraPower) == RADIOLIB_ERR_INVALID_OUTPUT_POWER) {
+    Serial.println(F("Selected output power is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  // disable CRC
+  if (radio.setCRC(false) == RADIOLIB_ERR_INVALID_CRC_CONFIGURATION) {
+    Serial.println(F("Selected CRC is invalid for this module!"));
+    while (true) { delay(10); }
+  }
+
+  radio.setPacketReceivedAction(packetReceived);
+#endif
+
+/*
   LoRa.setFrequency(MorsePreferences::loraQRG+0000);                       /// default = 434.150 MHz - Region 1 ISM Band, can be changed by system setup
   LoRa.setSpreadingFactor(7);                         /// default
   LoRa.setSignalBandwidth(250E3);                     /// 250 kHz
@@ -487,13 +567,6 @@ void setup()
   
   // register the receive callback
   LoRa.onReceive(onLoraReceive);
-#endif 
-
-/*
-while (true) {
-	bool keystate = digitalRead(modeButtonPin);
-	Serial.println(keystate);
-}
 */
 
   /// initialise the serial number
@@ -529,6 +602,8 @@ while (true) {
       Serial.read();
     inputString = "";
     MorseMenu::menu_();
+
+
 } /////////// END setup()
 
 
@@ -858,7 +933,12 @@ void loop() {
           }
     } // encoder 
     checkShutDown(false);         // check for time out
-    
+
+    if(loraReceived) {
+	loraReceived=false;
+	onLoraReceive();
+    }    
+
 }     /////////////////////// end of loop() /////////
 
 
@@ -1221,12 +1301,9 @@ void togglePolarity () {
 /// binary:   00          01                10                11
 
 uint8_t readSensors(int left, int right, boolean init) {
-#if HELTEC_VERSION==V3
-  return 0;
-#endif
   //long int timer = micros();
   //static boolean first = true;
-  uint8_t v, lValue, rValue;
+  uint32_t v, lValue, rValue;
   
   while ( !(v=touchRead(left)) )
     ;                                       // ignore readings with value 0
@@ -1234,19 +1311,23 @@ uint8_t readSensors(int left, int right, boolean init) {
    while ( !(v=touchRead(right)) )
     ;                                       // ignore readings with value 0
   rValue = v;
-
+  // Serial.print("Values:"); Serial.printf("%03d %03d\r\n",lValue,rValue); //Serial.print(" "); Serial.println(rValue);
+  // Serial.print("Values:"); Serial.print(lValue); Serial.print(" "); Serial.println(rValue);
   if (init == false) {
-    if (lValue < (MorsePreferences::tLeft+10))     {           //adaptive calibration
-        MorsePreferences::tLeft = ( 7*MorsePreferences::tLeft +  ((lValue+lUntouched) / SENS_FACTOR) ) / 8;
-    }
-    if (rValue < (MorsePreferences::tRight+10))     {           //adaptive calibration
-        MorsePreferences::tRight = ( 7*MorsePreferences::tRight +  ((rValue+rUntouched) / SENS_FACTOR) ) / 8;
-    }
-    return ( lValue < MorsePreferences::tLeft ? 2 : 0 ) + (rValue < MorsePreferences::tRight ? 1 : 0 );
+    //if (lValue > (MorsePreferences::tLeft-10))     {           //adaptive calibration
+    //    MorsePreferences::tLeft = ( 7*MorsePreferences::tLeft +  ((lValue+lUntouched) / SENS_FACTOR) ) / 8;
+    //}
+    //if (rValue > (MorsePreferences::tRight-10))     {           //adaptive calibration
+     //   MorsePreferences::tRight = ( 7*MorsePreferences::tRight +  ((rValue+rUntouched) / SENS_FACTOR) ) / 8;
+    //}
+#ifndef TOUCH_PADDLES
+    return 0;
+#endif
+    return ( lValue > MorsePreferences::tLeft ? 2 : 0 ) + (rValue > MorsePreferences::tRight ? 1 : 0 );
   } else {
-    //DEBUG("@1216: tLeft: " + String(MorsePreferences::tLeft));
+    DEBUG("@1216: tLeft: " + String(MorsePreferences::tLeft));
     //lValue -=25; rValue -=25;
-    //DEBUG("@1216: lValue, rValue: " + String (lValue) + " " + String(rValue));
+    DEBUG("@1216: lValue, rValue: " + String (lValue) + " " + String(rValue));
     if (lValue < 32 || rValue < 32)
       return 3;
     else
@@ -1256,22 +1337,29 @@ uint8_t readSensors(int left, int right, boolean init) {
 
 
 void initSensors() {
-  int v;
-  lUntouched = rUntouched = 60;       /// new: we seek minimum
-  for (int i=0; i<8; ++i) {
+  uint32_t v;
+  lUntouched = rUntouched = 20;       /// new: we seek minimum
+  for (int i=0; i<32; ++i) {
+      Serial.println(i);
       while ( !(v=touchRead(LEFT)) )
         ;                                       // ignore readings with value 0
+        Serial.println(v);
         lUntouched += v;
         //lUntouched = _min(lUntouched, v);
        while ( !(v=touchRead(RIGHT)) )
         ;                                       // ignore readings with value 0
+        Serial.println(v);
         rUntouched += v;
         //rUntouched = _min(rUntouched, v);
   }
-  lUntouched /= 8;
-  rUntouched /= 8;
-  MorsePreferences::tLeft = lUntouched - 9;
-  MorsePreferences::tRight = rUntouched - 9;
+  lUntouched /= 32;
+  rUntouched /= 32;
+  Serial.println("Touch untouched vals:");
+  Serial.println(lUntouched);
+  Serial.println(rUntouched);
+
+  MorsePreferences::tLeft = lUntouched +10000 ;
+  MorsePreferences::tRight = rUntouched +10000;
 }
 
 
@@ -1899,7 +1987,7 @@ void displayCWspeed() {
     sprintf(numBuf, "%2i", (morseState == morseDecoder ? wpm : MorsePreferences::wpm));         // d_wpm (decode) or p_wpm (default)
   MorseOutput::printOnStatusLine(encoderState == speedSettingMode ? true : false, 7,  numBuf);
   MorseOutput::printOnStatusLine(false, 10,  "WpM");
-  Heltec.display -> display();
+  display.display();
 }
 
 
@@ -1928,7 +2016,7 @@ void updateTopLine() {
       MorseOutput::dispWifiLogo();
 
   MorseOutput::displayVolume(encoderState == speedSettingMode, MorsePreferences::sidetoneVolume);                                     // sidetone volume
-  Heltec.display -> display();
+  display.display();
 }
 
 
@@ -2118,7 +2206,7 @@ void checkShutDown(boolean enforce) {       /// if enforce == true, we shut donw
           MorseOutput::printOnScroll(2, REGULAR, 0, "RED to turn ON");
           if (m32protocol)
                   jsonCreate("message", "Power off", "");
-          Heltec.display -> display();
+          display.display();
           delay (1500);
           shutMeDown();
       }
@@ -2133,8 +2221,14 @@ void shutMeDown() {
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0); //1 = High, 0 = Low
 
 #ifdef LORA
-  LoRa.sleep();                   //LORA sleep
+  radio.sleep();                   //LORA sleep
 #endif
+
+#ifdef SD_MODE_PIN
+    pinMode(SD_MODE_PIN,OUTPUT);
+    digitalWrite(SD_MODE_PIN, HIGH);
+#endif
+
   WiFi.disconnect(true, false);
   delay(100);
   digitalWrite(Vext,HIGH);
@@ -2207,11 +2301,36 @@ void cwForTx (int element) {
 void sendWithLora() {           // hand this string over as payload to the LoRA transceiver
   // send packet
 #ifdef LORA
-  LoRa.beginPacket();
-  LoRa.print(cwTxBuffer);
-  LoRa.endPacket();
+  int state = radio.transmit(cwTxBuffer);
+  if (state == RADIOLIB_ERR_NONE)
+  {
+    // the packet was successfully transmitted
+    Serial.println(F("success!"));
+
+    // print measured data rate
+    Serial.print(F("[SX1262] Datarate:\t"));
+    Serial.print(radio.getDataRate());
+    Serial.println(F(" bps"));
+  }
+  else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
+  {
+    // the supplied packet was longer than 256 bytes
+    Serial.println(F("too long!"));
+  }
+  else if (state == RADIOLIB_ERR_TX_TIMEOUT)
+  {
+    // timeout occured while transmitting packet
+    Serial.println(F("timeout!"));
+  }
+  else
+  {
+    // some other error occurred
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+  }
   if (morseState == loraTrx)
-      LoRa.receive();
+    radio.startReceive();
+    //LoRa.receive();
 #endif
 }
 
@@ -2232,25 +2351,28 @@ void sendWithWifi() {           // hand this string over as payload to the WiFi 
   //MorseWiFi::udp.endPacket();
 }
 
-void onLoraReceive(int packetSize){
+void onLoraReceive(){
+  int packetSize = radio.getPacketLength();
   u_int maxl = sizeof(cwTxBuffer) < packetSize ? sizeof(cwTxBuffer) : packetSize;
   String result; 
   String reason = "";
   reason.reserve(9);
-  result.reserve(sizeof(cwTxBuffer));   // we should never receive a packet longer than the sender is allowed to send!
+  // result.reserve(sizeof(cwTxBuffer));   // we should never receive a packet longer than the sender is allowed to send!
   result = "";
 
   // received a packet
+  int state = radio.readData(result);
+  if (state == RADIOLIB_ERR_NONE) {
+      // packet was successfully received
+      Serial.println(F("[SX1262] Received packet!"));
   // read packet
-  for (int i = 0; i < maxl; i++)
-  {
-#ifdef LORA
-    result += (char)LoRa.read();
-#endif
-  }
-  //DEBUG("@2162: 0st byte: " + String(int(result.charAt(0)), BIN ));
-  //DEBUG("@2162: 1st byte: " + String(int(result.charAt(1)), BIN ));
-  //DEBUG("@2162: 2nd byte: " + String(int(result.charAt(2)), BIN ));
+  //for (int i = 0; i < maxl; i++)
+  //{
+    // result += (char)LoRa.read();
+  //}
+  DEBUG("@2162: 0st byte: " + String(int(result.charAt(0)), BIN ));
+  DEBUG("@2162: 1st byte: " + String(int(result.charAt(1)), BIN ));
+  DEBUG("@2162: 2nd byte: " + String(int(result.charAt(2)), BIN ));
   if (sizeof(cwTxBuffer) < packetSize)
     reason = "LENGTH";
   if ((result.charAt(0) & 0b11000000) != 0b01000000)  {     // check protocol version # 
@@ -2258,15 +2380,17 @@ void onLoraReceive(int packetSize){
     goto error;
   }
   if ((result.charAt(1) & 0b00000011) && packetSize <= sizeof(cwTxBuffer)) {    // 1st actual morse element must not be 0b00
-    //DEBUG("@2170: packetSize: " + String(packetSize));
-#ifdef LORA
-      storePacket(LoRa.packetRssi(), result);
-#endif
+    DEBUG("@2170: packetSize: " + String(packetSize));
+      // storePacket(radio.getRSSI(), result);
+      storePacket(0, result);
       return;
   }
   if (reason == "")
     reason = "EOFC";
   error:    DEBUG("Invalid LoRa Packet: " + reason + "! Discarded...");
+  } else {
+    Serial.println(F("[SX1262] INVALID PACKET!"));
+  }
 }
 
 void onWifiReceive(AsyncUDPPacket packet) {

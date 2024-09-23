@@ -16,6 +16,14 @@
 #include "MorseOutput.h"
 #include "MorseDecoder.h"
 
+#include  "SSD1306Wire.h"
+extern SSD1306Wire display;
+
+#ifdef LORA
+#include <RadioLib.h>
+extern SX1262 radio;
+#endif
+
 using namespace MorseMenu;
 
 //////// variables and constants for the modus menu
@@ -137,7 +145,7 @@ void MorseMenu::menu_() {
    m32state = menu_loop;
       
 #ifdef LORA
-    LoRa.idle();
+    radio.standby();
 #endif
     WiFi.disconnect(true, false);
     genIsActive = false;
@@ -166,7 +174,7 @@ void MorseMenu::menu_() {
             if (m32protocol)
               jsonCreate("message", "Quick Start", "");
             MorseOutput::printOnScroll(2, REGULAR, 1, "QUICK START");
-            Heltec.display -> display();
+            display.display();
             delay(600);
             MorseOutput::clearDisplay();
         }
@@ -433,7 +441,8 @@ boolean MorseMenu::menuExec() {                                          // retu
                 clearPaddleLatches();
                 clearText = "";
 #ifdef LORA
-                LoRa.receive();
+		radio.startReceive();
+                // LoRa.receive();
 #endif
                 executeNow = false;
                 return true;
