@@ -33,7 +33,7 @@
                               // DialogInput_plain_12, DialogInput_bold_12 & DialogInput_plain_15, DialogInput_bold_15
                               // these fonts were created with this tool: http://oleddisplay.squix.ch/#/home
 #include "abbrev.h"           // common CW abbreviations
-#include "english_words.h"    // common English words
+#include "english_words_weighted.h"    // common English words
 #include "MorseOutput.h"      // display and sound functions
 #include "MorsePreferences.h" // preferences and persistent storage, snapshots
 #include "MorseMenu.h"        // main menu
@@ -1371,7 +1371,8 @@ String getRandomWord( int maxLength) {        //// give me a random English word
     if (kochActive)
         return koch.getRandomWord(); 
     else 
-        return EnglishWords::words[random(EnglishWords::WORDS_POINTER[maxLength], EnglishWords::WORDS_NUMBER_OF_ELEMENTS)];
+        return getRandomWeightedWord(maxLength == 0?100:maxLength);
+        // return EnglishWords::words[random(EnglishWords::WORDS_POINTER[maxLength], EnglishWords::WORDS_NUMBER_OF_ELEMENTS)];
 }
 
 String getRandomAbbrev( int maxLength) {        //// give me a random CW abbreviation , max maxLength chars long (1-5 = 2-6) - 0 returns any length
