@@ -50,8 +50,13 @@ I2S_Sidetone sidetone;
 
 ESP32Encoder encoder;
 
-#include  "SSD1306Wire.h"
-SSD1306Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_ONE, 700000);
+#include "SSD1306Wire.h"
+//#include "SH1106.h"
+
+SSD1306Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_TWO, 700000);
+// SH1106Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64, I2C_TWO, 700000);
+//SH1106Wire display(0x3c, OLED_SDA, OLED_SCL, GEOMETRY_128_64);  // ADDRESS, SDA, SCL
+// SH1106Wire display(0x3c, OLED_SDA, OLED_SCL);
 
 #ifdef LORA
 SX1262 radio = new Module(LoRa_nss, LoRa_dio1, LoRa_nrst, LoRa_busy);
@@ -366,7 +371,7 @@ void setup()
    //// 8. do the remaining initialisations
 
   Serial.begin(115200);
-  delay(50); // give me time to bring up serial monitor
+  delay(1000); // give me time to bring up serial monitor
   // reserve 200 bytes for the serial inputString variable defiend above:
   inputString.reserve(255);
 
@@ -428,14 +433,18 @@ void setup()
 
 #ifdef OLED_RST
   Serial.println("SSD1306 display reset");
+  delay(150);
   pinMode(OLED_RST, OUTPUT);
+  delay(150);
   digitalWrite(OLED_RST, LOW);
-  delay(20);
+  delay(50);
   digitalWrite(OLED_RST, HIGH);
+  delay(50);
 #endif
-
   display.init();
+#ifdef OLED_ROTATE
   display.flipScreenVertically();
+#endif
   display.clear();
 
   display.setBrightness(MorsePreferences::oledBrightness);
@@ -443,18 +452,23 @@ void setup()
   MorseOutput::printOnStatusLine( true, 0, "Init...pse wait...");   /// gives us something to watch while SPIFFS is created at very first start
 // shutdown pin for MAX98357A, HIGH to enable, LOW to sleep
 #ifdef SD_MODE_PIN
+  MorseOutput::printOnStatusLine( true, 0, "SD Mode...........");
   pinMode(SD_MODE_PIN,OUTPUT);
   digitalWrite(SD_MODE_PIN, HIGH);
   delay(1);
 #endif
   MorseOutput::soundSetup();
+  MorseOutput::printOnStatusLine( true, 0, "Encoder.pullup....");
 
   encoderPos = 0;           /// this is the encoder position
   ESP32Encoder::useInternalWeakPullResistors = puType::up;
+  MorseOutput::printOnStatusLine( true, 0, "Encoder.attach....");
   encoder.attachSingleEdge(PinCLK,PinDT);
   // encoder.attachHalfQuad(PinCLK,PinDT);
+  MorseOutput::printOnStatusLine( true, 0, "Encoder.config....");
   encoder.setCount(0);
   encoder.setFilter(1023);
+  MorseOutput::printOnStatusLine( true, 0, "Buttons...........");
 
 
 /// set up for encoder button
@@ -476,6 +490,7 @@ void setup()
 
   /// check if a key has been pressed on startup - if yes, we have to perform Hardware Configuration
 
+  MorseOutput::printOnStatusLine( true, 0, "Spiffs............");
   if (SPIFFS.begin(false))  {                     // while the SPIFFS has not been initialized (i.e. 1st programming), we are not going to check the key press
       if (key_was_pressed_at_start()) {
          MorsePreferences::displayKeyerPreferencesMenu(posHwConf);
@@ -491,10 +506,12 @@ void setup()
          }
       }
   }
+  MorseOutput::printOnStatusLine( true, 0, "Analog............");
   analogSetAttenuation(ADC_0db);
   adcAttachPin(audioInPin);
 
   // to calibrate sensors, we record the values in untouched state; need to do this after checking for system config
+  MorseOutput::printOnStatusLine( true, 0, "Sensors...........");
   initSensors();
 
   /// set up quickstart - this should only be done once at startup - after successful quickstart we disable it to allow normal menu operation
@@ -503,6 +520,7 @@ void setup()
 // #if HELTEC_VERSION != V3
 ////////////  Setup for LoRa
 #ifdef LORA
+  MorseOutput::printOnStatusLine( true, 0, "lora..............");
   SPI.begin(LoRa_SCK, LoRa_MISO, LoRa_MOSI, LoRa_nss);
   Serial.print(F("[SX1262] Initializing ... "));
   int state = radio.begin();
@@ -1301,6 +1319,7 @@ void togglePolarity () {
 /// binary:   00          01                10                11
 
 uint8_t readSensors(int left, int right, boolean init) {
+#ifdef TOUCH_PADDLES
   //long int timer = micros();
   //static boolean first = true;
   uint32_t v, lValue, rValue;
@@ -1333,10 +1352,14 @@ uint8_t readSensors(int left, int right, boolean init) {
     else
       return 0; 
   }
+#else
+  return 0;
+#endif
 }
 
 
 void initSensors() {
+#ifdef TOUCH_PADDLES
   uint32_t v;
   lUntouched = rUntouched = 20;       /// new: we seek minimum
   for (int i=0; i<32; ++i) {
@@ -1360,6 +1383,7 @@ void initSensors() {
 
   MorsePreferences::tLeft = lUntouched +10000 ;
   MorsePreferences::tRight = rUntouched +10000;
+#endif
 }
 
 
@@ -2353,6 +2377,7 @@ void sendWithWifi() {           // hand this string over as payload to the WiFi 
 }
 
 void onLoraReceive(){
+#ifdef LORA
   int packetSize = radio.getPacketLength();
   u_int maxl = sizeof(cwTxBuffer) < packetSize ? sizeof(cwTxBuffer) : packetSize;
   String result; 
@@ -2392,6 +2417,7 @@ void onLoraReceive(){
   } else {
     Serial.println(F("[SX1262] INVALID PACKET!"));
   }
+#endif
 }
 
 void onWifiReceive(AsyncUDPPacket packet) {

@@ -16,7 +16,7 @@
 #include "MorseOutput.h"
 #include "MorseDecoder.h"
 
-#include  "SSD1306Wire.h"
+#include  "SSD1306.h"
 extern SSD1306Wire display;
 
 #ifdef LORA
