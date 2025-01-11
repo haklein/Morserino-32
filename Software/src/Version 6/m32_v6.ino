@@ -60,6 +60,12 @@ void packetReceived() {
   loraReceived = true;
 }
 
+#ifdef CONFIG_BLEKEYBOARD
+#define USE_NIMBLE
+#include <BleKeyboard.h>
+BleKeyboard bleKeyboard("Morserino32");
+#endif
+
 // define the buttons for the clickbutton library, & other classes that we need
 
 /// variables, value defined at setup()
@@ -565,6 +571,11 @@ void setup()
   radio.setCRC(false);
   radio.setPacketReceivedAction(packetReceived);
 #endif
+
+#ifdef CONFIG_BLEKEYBOARD
+  bleKeyboard.begin();
+#endif
+
   /// initialise the serial number
   cwTxSerial = random(64);
 
@@ -1937,7 +1948,13 @@ void displayDecodedMorse(String symbol, boolean keyed) {
   MorseOutput::printToScroll( REGULAR, symbol, true, encoderState == scrollMode);
 
   SerialOutMorse(symbol, keyed ? 0b001 : 0b010);
-  
+
+#ifdef CONFIG_BLEKEYBOARD
+  if(bleKeyboard.isConnected()) {
+    bleKeyboard.print(symbol);
+  }
+#endif
+
   if (morseState == echoTrainer) {                /// store the character in the response string
     symbol.replace("<as>", "S");                  // maybe we need it for echo trainer or for autostop mode
     symbol.replace("<ka>", "A");
