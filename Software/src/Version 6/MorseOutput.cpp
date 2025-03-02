@@ -48,6 +48,7 @@ DisplayWrapper display;
 #ifdef CONFIG_SOUND_I2S
 #include "I2S_Sidetone.hpp"
 I2S_Sidetone sidetone;
+uint8_t last_volume = MorsePreferences::sidetoneVolume;
 #endif
 
 #ifdef CONFIG_WM8960
@@ -667,7 +668,8 @@ void MorseOutput::resetTOT() {       //// reset the Time Out Timer - we do this 
 #ifdef CONFIG_TLV320AIC3100
 void soundEnableHeadphone(void) {
     codec.enableHeadphoneAmp();
-    codec.setHeadphoneVolume(-10.0f,-10.0f); // unmute
+    float tmp_vol = -78.3f + (MorsePreferences::sidetoneVolume / 19.0f) * 78.3f;
+    codec.setHeadphoneVolume(tmp_vol,tmp_vol); // unmute
     codec.setHeadphoneGain(0.0f,0.0f);
     codec.setHeadphoneMute(false); // unmute hp
     codec.setSpeakerMute(true); // unmute class d speaker amp
@@ -676,7 +678,8 @@ void soundEnableHeadphone(void) {
 void soundEnableSpeaker(void) {
     codec.enableSpeakerAmp();
     codec.setSpeakerGain(6.0f); // valid db: 6, 12, 18, 24
-    codec.setSpeakerVolume(-10.0f); // unmute
+    float tmp_vol = -78.3f + (MorsePreferences::sidetoneVolume / 19.0f) * 78.3f;
+    codec.setSpeakerVolume(tmp_vol); // unmute
     codec.setSpeakerMute(false); // unmute class d speaker amp
     codec.setHeadphoneMute(true); // mute hp
 }
@@ -913,7 +916,17 @@ void MorseOutput::pwmTone(unsigned int frequency, unsigned int volume, boolean l
 
 #else
   sidetone.setFrequency(frequency);
-  sidetone.setVolume(float(volume) / 19.0);
+  if (volume != last_volume) {
+    last_volume = volume;
+#ifdef CONFIG_TLV320AIC3100
+    sidetone.setVolume(0.95); // allmost full sine amplitude as volume is controlled via the amps
+    float tmp_vol = -78.3f + (volume / 19.0f) * 78.3f;
+    codec.setHeadphoneVolume(tmp_vol,tmp_vol);
+    codec.setSpeakerVolume(tmp_vol);
+#else
+    sidetone.setVolume(float(volume) / 19.0);
+#endif
+  }
   sidetone.on();
 #endif
 }
