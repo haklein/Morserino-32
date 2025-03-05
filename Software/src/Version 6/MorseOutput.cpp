@@ -670,14 +670,14 @@ void soundEnableHeadphone(void) {
     codec.enableHeadphoneAmp();
     float tmp_vol = -78.3f + (MorsePreferences::sidetoneVolume / 19.0f) * 78.3f;
     codec.setHeadphoneVolume(tmp_vol,tmp_vol); // unmute
-    codec.setHeadphoneGain(0.0f,0.0f);
+    codec.setHeadphoneGain(-6.0f,-6.0f);
     codec.setHeadphoneMute(false); // unmute hp
     codec.setSpeakerMute(true); // unmute class d speaker amp
 }
 
 void soundEnableSpeaker(void) {
     codec.enableSpeakerAmp();
-    codec.setSpeakerGain(6.0f); // valid db: 6, 12, 18, 24
+    codec.setSpeakerGain(12.0f); // valid db: 6, 12, 18, 24
     float tmp_vol = -78.3f + (MorsePreferences::sidetoneVolume / 19.0f) * 78.3f;
     codec.setSpeakerVolume(tmp_vol); // unmute
     codec.setSpeakerMute(false); // unmute class d speaker amp
@@ -857,7 +857,7 @@ void MorseOutput::soundSetup()
       // codec.writeRegister(AIC31XX_MICBIAS,11);
       codec.enableDAC();
       codec.setDACMute(false);
-      codec.setDACVolume(20.0f,20.0f);
+      codec.setDACVolume(00.0f,00.0f);
       codec.enableADC();
       codec.setADCGain(-12.0f);
       // Enable the speaker and then run soundEventHandler once to mute/unmute HP/Spk depending on HS plug state
@@ -867,7 +867,7 @@ void MorseOutput::soundSetup()
       // codec.dumpRegisters(); // nifty when debugging codec issues
     }
 #endif
-  sidetone.begin(44100,16,2,128); //  defaults to 44100, 16, 2, 32
+  sidetone.begin(44100,16,2,256); //  defaults to 44100, 16, 2, 32
   sidetone.setFrequency(600.0);
 #endif
 }
@@ -972,20 +972,37 @@ void MorseOutput::pwmClick(unsigned int volume) {                        /// gen
 }
 
 void MorseOutput::soundSignalOK() {
+#ifndef CONFIG_SOUND_I2S
     pwmTone(440, MorsePreferences::sidetoneVolume, false);
     delay(97);
     pwmNoTone(MorsePreferences::sidetoneVolume);
-#ifdef CONFIG_SOUND_I2S
-    delay(20);
-#endif
     pwmTone(587, MorsePreferences::sidetoneVolume, false);
     delay(193);
     pwmNoTone(MorsePreferences::sidetoneVolume);
+#else
+    if (! sidetone.playSPIFFSFile("/sounds/success.mp3")) {
+        pwmTone(440, MorsePreferences::sidetoneVolume, false);
+        delay(97);
+        pwmNoTone(MorsePreferences::sidetoneVolume);
+        delay(20);
+        pwmTone(587, MorsePreferences::sidetoneVolume, false);
+        delay(193);
+        pwmNoTone(MorsePreferences::sidetoneVolume);
+    }
+#endif
 }
 
 
 void MorseOutput::soundSignalERR() {
+#ifndef CONFIG_SOUND_I2S
     pwmTone(311, MorsePreferences::sidetoneVolume, false);
     delay(193);
     pwmNoTone(MorsePreferences::sidetoneVolume);
+#else
+    if (! sidetone.playSPIFFSFile("/sounds/error.mp3")) {
+        pwmTone(311, MorsePreferences::sidetoneVolume, false);
+        delay(193);
+        pwmNoTone(MorsePreferences::sidetoneVolume);
+    }
+#endif
 }
