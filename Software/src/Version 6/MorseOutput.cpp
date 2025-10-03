@@ -1004,7 +1004,7 @@ void MorseOutput::displayBatteryStatus(int v) {    /// v in millivolts!
         s = "Charge";
         break;
       case 3:
-        s = "Low!";
+        //s = "Low!";
         break;
       case 4:
         s = "Full";
@@ -1021,18 +1021,33 @@ void MorseOutput::displayBatteryStatus(int v) {    /// v in millivolts!
     }
 #ifdef CONFIG_BATMEAS_PIN
 // pocketwroom with voltage reading
-  s+= " " + String(v/1000.0);
+//  s+= " " + String(v/1000.0);
 #endif
 #endif
   printOnScroll(2, REGULAR, 0, s);
-#ifndef CONFIG_MCP73871
-  int w = constrain(v, 3100, 4100);
-  w = map(w, 3100, 4100, 0, 31);
-  display.drawRect(75, SCROLL_TOP + 2 * LINE_HEIGHT + 3, 35, LINE_HEIGHT - 4);
-  display.drawRect(110, SCROLL_TOP + 2 * LINE_HEIGHT + 5, 4, LINE_HEIGHT - 8);
+#ifdef CONFIG_DISPLAYWRAPPER
+    #define batt_x 220
+    #define batt_width 70
+    #define batt_h (LINE_HEIGHT - 4)
+    #define butt_width 12
+    #define butt_h (LINE_HEIGHT - 16)
+#else
+    #define batt_x 75
+    #define batt_width 35
+    #define batt_h (LINE_HEIGHT - 4)
+    #define butt_width 4
+    #define butt_h (LINE_HEIGHT - 8)
+#endif 
+#define butt_x (batt_x + batt_width )
+
+//#ifndef CONFIG_MCP73871
+  int w = constrain(v, 3300, 4200);
+  w = map(w, 3300, 4200, 0, batt_width - 4);
+  display.drawRect(batt_x, SCROLL_TOP + 2 * LINE_HEIGHT + 3, batt_width, batt_h);
+  display.drawRect(butt_x, SCROLL_TOP + 2 * LINE_HEIGHT + (3 + (batt_h - butt_h)/2), butt_width, butt_h);
   if (v > 1000)
-    display.fillRect(77, SCROLL_TOP + 2 * LINE_HEIGHT + 5 , w, LINE_HEIGHT - 8);
-#endif
+    display.fillRect(batt_x+2, SCROLL_TOP + 2 * LINE_HEIGHT + 5 , w, LINE_HEIGHT - 8);
+//#endif
   display.display();
 }
 
@@ -1040,9 +1055,16 @@ void MorseOutput::displayEmptyBattery(void (*f)()) {                            
   display.clear();
   display.drawRect(10, 11, 95, 50);
   display.drawRect(105, 26, 15, 20);
-  printOnScroll(1, INVERSE_BOLD, 4,  "EMPTY");
-  delay(4000);
-  (*f)();
+  if (f != 0) {
+    printOnScroll(1, INVERSE_BOLD, 4,  "EMPTY");
+    delay(4000);
+    (*f)();
+  }
+  else {
+    printOnScroll(1, INVERSE_BOLD, 4,  "LOW BATTERY");
+    display.display();
+    delay(4000);
+  }
 }
 
 #ifdef CONFIG_DISPLAYWRAPPER
@@ -1202,20 +1224,71 @@ void MorseOutput::resetTOT() {       //// reset the Time Out Timer - we do this 
 /////// functions for audio output
 
 #ifdef CONFIG_TLV320AIC3100
+
+
+
+float calcVolume(uint8_t v) { // v = 0 - 19
+  // we map the volume levels 0 - 19 to dB values for the codec
+  // 
+  switch (v) {
+    case 0:
+      return -78.0f; // off
+    case 1:
+      return -60.0f;
+    case 2:
+      return -54.0f;
+    default:
+      return (float) ((19 - v ) * -3.0); // calculate  -3dB steps 
+  }
+}
+
 void soundEnableHeadphone(void) {
     codec.enableHeadphoneAmp();
-    codec.setHeadphoneVolume(-10.0f,-10.0f); // unmute
-    codec.setHeadphoneGain(-12.0f,-12.0f);
+    // codec.setHeadphoneVolume(-30.0f,-30.0f); // volume regulated by encoder
+    codec.setHeadphoneVolume(calcVolume(MorsePreferences::sidetoneVolume)-12.0,calcVolume(MorsePreferences::sidetoneVolume)-12.0);
+    codec.setHeadphoneGain(0.0f,0.0f); // valid db: 0 - 9
     codec.setHeadphoneMute(false); // unmute hp
-    codec.setSpeakerMute(true); // unmute class d speaker amp
+    codec.setSpeakerMute(true); // mute class d speaker amp
 }
 
 void soundEnableSpeaker(void) {
     codec.enableSpeakerAmp();
     codec.setSpeakerGain(6.0f); // valid db: 6, 12, 18, 24
-    codec.setSpeakerVolume(-10.0f); // unmute
+    // codec.setSpeakerVolume(-13.0f); // volume set by encoder
+    codec.setSpeakerVolume(calcVolume(MorsePreferences::sidetoneVolume));
     codec.setSpeakerMute(false); // unmute class d speaker amp
     codec.setHeadphoneMute(true); // mute hp
+}
+
+void soundEnableLineOut(void) {
+    codec.enableHeadphoneAmp();
+    //codec.setHeadphoneVolume(-10.0f,-10.0f); // unmute
+    //codec.setHeadphoneGain(-12.0f,-12.0f);
+    codec.setHeadphoneMute(false); // unmute hp
+    codec.setHeadphoneLineMode(true); // enable line-out mode and loudspeaker
+    codec.enableSpeakerAmp();
+    codec.setSpeakerGain(6.0f); // valid db: 6, 12, 18, 24
+    // codec.setSpeakerVolume(-10.0f); // volume set by encoder
+    codec.setHeadphoneVolume(0.0, 0.0); // volume 0db on line-out
+    codec.setSpeakerVolume(calcVolume(MorsePreferences::sidetoneVolume));
+    codec.setSpeakerMute(false); // unmute class d speaker amp
+  
+}
+
+void MorseOutput::soundSetVolume(uint8_t v) { // v = 0 - 19
+  if (codec.isHeadsetDetected()) {
+    if (v==0)
+      codec.setHeadphoneMute(true); // mute hp
+    else  
+      codec.setHeadphoneMute(false);
+    codec.setHeadphoneVolume(calcVolume(v)-12.0, calcVolume(v)-12.0); // reduce headphone volume by 6dB to match speaker volume
+  } else {
+    if (v==0)
+      codec.setSpeakerMute(true); // mute class d speaker amp
+    else  
+      codec.setSpeakerMute(false);
+    codec.setSpeakerVolume(calcVolume(v));
+  }
 }
 
 void MorseOutput::soundEventHandler() {
@@ -1227,8 +1300,9 @@ void MorseOutput::soundEventHandler() {
     Serial.println("AIC31XX: Headset detected");
 	soundEnableHeadphone();
   } else {
-    Serial.println("AIC31XX: Headset not plugged");
-	soundEnableSpeaker();
+    Serial.println("AIC31XX: Not a headset but LineOut");
+	soundEnableLineOut();
+       // enable speaker AND line-out!
   }
 }
 #endif
@@ -1450,7 +1524,8 @@ void MorseOutput::pwmTone(unsigned int frequency, unsigned int volume, boolean l
 
 #else
   sidetone.setFrequency(frequency);
-  sidetone.setVolume(float(volume) / 19.0);
+  //sidetone.setVolume(float(volume) / 19.0);
+  sidetone.setVolume(0.7);
   sidetone.on();
 #endif
 }
@@ -1482,8 +1557,27 @@ void MorseOutput::pwmNoTone(unsigned int volume) {      // stop playing a tone b
 
 
 void MorseOutput::pwmClick(unsigned int volume) {                        /// generate a click on the speaker
+    
     if (!MorsePreferences::pliste[posClicks].value)
       return;
+    #ifdef CONFIG_SOUND_I2S
+      uint8_t v;
+      if (MorsePreferences::sidetoneVolume > 14)
+        v = MorsePreferences::sidetoneVolume -4;
+      else if (MorsePreferences::sidetoneVolume > 5)
+        v = MorsePreferences::sidetoneVolume -2;
+      else
+        v = MorsePreferences::sidetoneVolume +2;
+      soundSetVolume(v);
+      pwmTone(572,v,false);
+      delay(3);
+      pwmNoTone(v);
+      delay(2);
+      pwmTone(1144,v,false);
+      delay(6);
+      pwmNoTone(v);
+      soundSetVolume(MorsePreferences::sidetoneVolume);
+    #else
     pwmTone(572,volume > 4 ? volume-4 : volume, false);
     delay(3);
     //pwmTone(286,volume, false);
@@ -1491,8 +1585,9 @@ void MorseOutput::pwmClick(unsigned int volume) {                        /// gen
 
     delay(6);
     //pwmTone(143,volume-4, false);
-    //delay(7);
+    //delay(7);           
     pwmNoTone(volume);
+    #endif
 }
 
 void MorseOutput::soundSignalOK() {
